@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="zh-Hans">
+<head>
+  <meta charset="UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css" />
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css" />
+
+<link href="/css/main.css?v=5.1.3" rel="stylesheet" type="text/css" />
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.3">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.3">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.3">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.3" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="Mobx," />
+
+
+
+
+
+  <link rel="alternate" href="/atom.xml" title="Blog" type="application/atom+xml" />
+
+
+
+
+
+
+<meta name="description" content="前面讨论 Observable 时，提到 Mobx 默认使用 deepEnhancer 来包装生成可观察的值，即递归地将该值的属性或元素（如果有）都转换成可观察的。Mobx 提供了五种类型的 Modifier，可以改变这种默认行为，本篇文章我们来看看 Modifier 的原理和实现。">
+<meta name="keywords" content="Mobx">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Mobx 源码解读（三） Modifier">
+<meta property="og:url" content="http://guochen-whu.github.io/2017/11/16/Mobx-源码解读（三）-Modifier/index.html">
+<meta property="og:site_name" content="Blog">
+<meta property="og:description" content="前面讨论 Observable 时，提到 Mobx 默认使用 deepEnhancer 来包装生成可观察的值，即递归地将该值的属性或元素（如果有）都转换成可观察的。Mobx 提供了五种类型的 Modifier，可以改变这种默认行为，本篇文章我们来看看 Modifier 的原理和实现。">
+<meta property="og:locale" content="zh-Hans">
+<meta property="og:updated_time" content="2017-12-02T04:02:09.922Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Mobx 源码解读（三） Modifier">
+<meta name="twitter:description" content="前面讨论 Observable 时，提到 Mobx 默认使用 deepEnhancer 来包装生成可观察的值，即递归地将该值的属性或元素（如果有）都转换成可观察的。Mobx 提供了五种类型的 Modifier，可以改变这种默认行为，本篇文章我们来看看 Modifier 的原理和实现。">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '5.1.3',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: '博主'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://guochen-whu.github.io/2017/11/16/Mobx-源码解读（三）-Modifier/"/>
+
+
+
+
+
+  <title>Mobx 源码解读（三） Modifier | Blog</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/"  class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">Blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle"></p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br />
+            
+            首页
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-about">
+          <a href="/about/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-user"></i> <br />
+            
+            关于
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br />
+            
+            标签
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br />
+            
+            归档
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://guochen-whu.github.io/2017/11/16/Mobx-源码解读（三）-Modifier/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="郭琛">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">Mobx 源码解读（三） Modifier</h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+              <time title="创建于" itemprop="dateCreated datePublished" datetime="2017-11-16T11:57:35+08:00">
+                2017-11-16
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2017/11/16/Mobx-源码解读（三）-Modifier/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count valine-comment-count" data-xid="/2017/11/16/Mobx-源码解读（三）-Modifier/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+
+          
+
+          
+            <div class="post-wordcount">
+              
+                
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-file-word-o"></i>
+                </span>
+                
+                  <span class="post-meta-item-text">字数统计&#58;</span>
+                
+                <span title="字数统计">
+                  1,481 字
+                </span>
+              
+
+              
+                <span class="post-meta-divider">|</span>
+              
+
+              
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-clock-o"></i>
+                </span>
+                
+                  <span class="post-meta-item-text">阅读时长 &asymp;</span>
+                
+                <span title="阅读时长">
+                  7 分钟
+                </span>
+              
+            </div>
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <p>前面讨论 Observable 时，提到 Mobx 默认使用 deepEnhancer 来包装生成可观察的值，即递归地将该值的属性或元素（如果有）都转换成可观察的。Mobx 提供了五种类型的 Modifier，可以改变这种默认行为，本篇文章我们来看看 Modifier 的原理和实现。</p>
+<a id="more"></a>
+<h2 id="基本原理"><a href="#基本原理" class="headerlink" title="基本原理"></a>基本原理</h2><p>Modifier 可以作为 decorator、与 extendObservable 或 observable.object 一起使用，改变某一对象属性的默认转换行为。</p>
+<p>比如：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">let</span> store = observable(&#123;</span><br><span class="line">  users: observable.shallow([])</span><br><span class="line">&#125;);</span><br></pre></td></tr></table></figure>
+<p>使用 modifier 会将该属性包装成如下形式：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">&#123;</span><br><span class="line">  initialValue: [], <span class="comment">// 属性值</span></span><br><span class="line">  enhancer: shallowEnhancer, <span class="comment">// 不同 Modifier 使用不同的 enhancer</span></span><br><span class="line">  isMobxModifierDescriptor: <span class="literal">true</span> <span class="comment">// 标志位，用于 defineObservablePropertyFromDescriptor 函数中的判断</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>这样，在 defineObservablePropertyFromDescriptor 时：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 如果是 Modifier 的描述符，取出值和enhancer</span></span><br><span class="line"><span class="keyword">if</span> (isModifierDescriptor(descriptor.value)) &#123;</span><br><span class="line">  <span class="keyword">const</span> modifierDescriptor = descriptor.value <span class="keyword">as</span> IModifierDescriptor&lt;<span class="built_in">any</span>&gt;</span><br><span class="line">  defineObservableProperty(</span><br><span class="line">    adm,</span><br><span class="line">    propName,</span><br><span class="line">    modifierDescriptor.initialValue,</span><br><span class="line">    modifierDescriptor.enhancer</span><br><span class="line">  )</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>就能取出指定的 enhancer 去包装可观察的值了。</p>
+<p>使用了 Modifier 的属性转换成 「可观察的值」后，其 enhancer 属性会将相应 enhancer 保存下来。下一次设置该属性值时，在 prepareNewValue 方法中将新值也使用 enhancer 去包装：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> prepareNewValue(newValue): T | IUNCHANGED &#123;</span><br><span class="line">  <span class="comment">// ......</span></span><br><span class="line">  <span class="comment">// 应用 Modifier</span></span><br><span class="line">  newValue = <span class="keyword">this</span>.enhancer(newValue, <span class="keyword">this</span>.value, <span class="keyword">this</span>.name)</span><br><span class="line">  <span class="keyword">return</span> <span class="keyword">this</span>.value !== newValue ? newValue : UNCHANGED</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>所以，Modifier 不光作用于「当前值」，对于将来设置的值也会生效。</p>
+<h2 id="五种类型的-Modifier"><a href="#五种类型的-Modifier" class="headerlink" title="五种类型的 Modifier"></a>五种类型的 Modifier</h2><p>来看看五种 Modifier 的作用和实现原理。</p>
+<h3 id="observable-deep"><a href="#observable-deep" class="headerlink" title="observable.deep"></a>observable.deep</h3><p>这是默认的 Modifier，使用 deepEnhancer 对值进行包装。</p>
+<p>deepEnhancer 我们已经很熟悉了，它会递归地在可观察对象的属性或可观察数组、Map 的元素上调用：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">deepEnhancer</span>(<span class="params">v, _, name</span>) </span>&#123;</span><br><span class="line">  <span class="keyword">if</span> (isObservable(v)) <span class="keyword">return</span> v</span><br><span class="line"></span><br><span class="line">  <span class="comment">// observable 的这三个方法内部递归使用 deepEnhancer 创建可观察值</span></span><br><span class="line">  <span class="keyword">if</span> (<span class="built_in">Array</span>.isArray(v)) <span class="keyword">return</span> observable.array(v, name)</span><br><span class="line">  <span class="keyword">if</span> (isPlainObject(v)) <span class="keyword">return</span> observable.object(v, name)</span><br><span class="line">  <span class="keyword">if</span> (isES6Map(v)) <span class="keyword">return</span> observable.map(v, name)</span><br><span class="line"></span><br><span class="line">  <span class="keyword">return</span> v</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="observable-ref"><a href="#observable-ref" class="headerlink" title="observable.ref"></a>observable.ref</h3><p>referenceEnhancer 不对传入的值进行转换，直接返回：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">referenceEnhancer</span>(<span class="params">newValue?</span>) </span>&#123;</span><br><span class="line">  <span class="keyword">return</span> newValue</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="observable-shallow"><a href="#observable-shallow" class="headerlink" title="observable.shallow"></a>observable.shallow</h3><p>shallowEnhancer 只转换 Object, Array, Map 本身，不对其属性（或元素）转换：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">shallowEnhancer</span>(<span class="params">v, _, name</span>): <span class="title">any</span> </span>&#123;</span><br><span class="line">  <span class="keyword">if</span> (isModifierDescriptor(v))</span><br><span class="line">    fail(</span><br><span class="line">      <span class="string">"You tried to assign a modifier wrapped value to a collection, please define modifiers when creating the collection, not when modifying it"</span></span><br><span class="line">    )</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (v === <span class="literal">undefined</span> || v === <span class="literal">null</span>) <span class="keyword">return</span> v</span><br><span class="line">  <span class="comment">// 不对 Object, Array 和 Map 的属性（元素）进行处理</span></span><br><span class="line">  <span class="keyword">if</span> (isObservableObject(v) || isObservableArray(v) || isObservableMap(v)) <span class="keyword">return</span> v</span><br><span class="line">  <span class="comment">// shallow 系列的方法使用 referenceEnhancer，不对属性（元素）进行转换</span></span><br><span class="line">  <span class="keyword">if</span> (<span class="built_in">Array</span>.isArray(v)) <span class="keyword">return</span> observable.shallowArray(v, name)</span><br><span class="line">  <span class="keyword">if</span> (isPlainObject(v)) <span class="keyword">return</span> observable.shallowObject(v, name)</span><br><span class="line">  <span class="keyword">if</span> (isES6Map(v)) <span class="keyword">return</span> observable.shallowMap(v, name)</span><br><span class="line"></span><br><span class="line">  <span class="keyword">return</span> fail(</span><br><span class="line">    <span class="string">"The shallow modifier / decorator can only used in combination with arrays, objects and maps"</span></span><br><span class="line">  )</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="observable-struct-和-observable-ref-struct"><a href="#observable-struct-和-observable-ref-struct" class="headerlink" title="observable.struct 和 observable.ref.struct"></a>observable.struct 和 observable.ref.struct</h3><p>structEnhancer 表示可观察的「结构」，比如一个窗口大小对象，由长宽组成：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">&#123;</span><br><span class="line">  width: <span class="number">100</span>,</span><br><span class="line">  height: <span class="number">100</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>structEnhancer 会使用 deepEqual 比较长宽是否发生变化，发生变化时才会通知观察者。即使窗口大小对象的引用发生变化而长宽值不变，也不会通知观察者。</p>
+<p>structEnhancer 也分两种：deepStructEnhancer 和 refStructEnhancer，也就是说前者会在修饰属性值的属性上继续递归，将其转换成可观察的「结构」，而后者不会递归执行。</p>
+<p>使用 structEnhancer 后，设置属性时，就可以看到 Enhancer 的第二个参数的作用了：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">deepStructEnhancer</span>(<span class="params">v, oldValue, name</span>): <span class="title">any</span> </span>&#123;</span><br><span class="line">  <span class="comment">// set 时，深比较新旧值，如果相等，就不包装直接返回了</span></span><br><span class="line">  <span class="comment">// 这样 prepareNewValue 中判断没有变化，就不会发送通知</span></span><br><span class="line">  <span class="keyword">if</span> (deepEqual(v, oldValue)) <span class="keyword">return</span> oldValue</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (isObservable(v)) <span class="keyword">return</span> v</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (<span class="built_in">Array</span>.isArray(v)) <span class="keyword">return</span> <span class="keyword">new</span> ObservableArray(v, deepStructEnhancer, name)</span><br><span class="line">  <span class="keyword">if</span> (isES6Map(v)) <span class="keyword">return</span> <span class="keyword">new</span> ObservableMap(v, deepStructEnhancer, name)</span><br><span class="line">  <span class="keyword">if</span> (isPlainObject(v)) &#123;</span><br><span class="line">    <span class="keyword">const</span> res = &#123;&#125;</span><br><span class="line">    asObservableObject(res, name)</span><br><span class="line">    extendObservableHelper(res, deepStructEnhancer, [v])</span><br><span class="line">    <span class="keyword">return</span> res</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">return</span> v</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">refStructEnhancer</span>(<span class="params">v, oldValue, name</span>): <span class="title">any</span> </span>&#123;</span><br><span class="line">  <span class="keyword">if</span> (deepEqual(v, oldValue)) <span class="keyword">return</span> oldValue</span><br><span class="line">  <span class="keyword">return</span> v</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="作为-Decorator-使用的-Modifier"><a href="#作为-Decorator-使用的-Modifier" class="headerlink" title="作为 Decorator 使用的 Modifier"></a>作为 Decorator 使用的 Modifier</h2><p>Modifier 经常作为 Decorator 使用，装饰一个属性：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">class</span> Message &#123;</span><br><span class="line">  <span class="comment">// 相当于 @observable.deep</span></span><br><span class="line">  <span class="meta">@observable</span> message = <span class="string">'Hello world'</span></span><br><span class="line">  <span class="meta">@observable</span>.ref author = <span class="literal">null</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>Mobx 对这种用法做了适配，以 observable.deep 为例。</p>
+<p>我们知道，属性装饰器本质上就是一个参数与 Object.defineProperty 一致的函数，它返回一个新的属性描述符，并把这个新的描述符作用在目标属性上。因此 observable 和 observable.deep 中根据参数判断是否是作为属性装饰器使用：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">createObservable</span>(<span class="params">v: <span class="built_in">any</span> = <span class="literal">undefined</span></span>) </span>&#123;</span><br><span class="line">  <span class="comment">// observable 作为装饰器装饰某属性</span></span><br><span class="line">  <span class="comment">// arguments[1] 为属性名，string 类型</span></span><br><span class="line">  <span class="keyword">if</span> (<span class="keyword">typeof</span> <span class="built_in">arguments</span>[<span class="number">1</span>] === <span class="string">"string"</span>) <span class="keyword">return</span> deepDecorator.apply(<span class="literal">null</span>, <span class="built_in">arguments</span>)</span><br><span class="line">  <span class="comment">// ...</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">deep() &#123;</span><br><span class="line">  <span class="comment">// 作为函数调用，参数为需要包装的值</span></span><br><span class="line">  <span class="keyword">if</span> (<span class="built_in">arguments</span>.length &lt; <span class="number">2</span>) &#123;</span><br><span class="line">    <span class="keyword">return</span> createModifierDescriptor(deepEnhancer, <span class="built_in">arguments</span>[<span class="number">0</span>]) <span class="keyword">as</span> <span class="built_in">any</span></span><br><span class="line">  </span><br><span class="line">  <span class="comment">// 作为装饰器使用</span></span><br><span class="line">  &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">    <span class="keyword">return</span> deepDecorator.apply(<span class="literal">null</span>, <span class="built_in">arguments</span>)</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>其中 deepDecorator 由 createDecoratorForEnhancer 函数生成：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">createDecoratorForEnhancer</span>(<span class="params">enhancer: IEnhancer&lt;<span class="built_in">any</span>&gt;</span>) </span>&#123;</span><br><span class="line">  <span class="keyword">return</span> createClassPropertyDecorator(</span><br><span class="line">    (target, name, baseValue, _, baseDescriptor) =&gt; &#123;</span><br><span class="line">      assertPropertyConfigurable(target, name)</span><br><span class="line">      invariant(!baseDescriptor || !baseDescriptor.get, getMessage(<span class="string">"m022"</span>))</span><br><span class="line"></span><br><span class="line">      <span class="comment">// 先获取 admin 对象</span></span><br><span class="line">      <span class="keyword">const</span> adm = asObservableObject(target, <span class="literal">undefined</span>)</span><br><span class="line">      <span class="comment">// 然后在 admin 对象上使用指定 enhancer 定义属性即可</span></span><br><span class="line">      defineObservableProperty(adm, name, baseValue, enhancer)</span><br><span class="line">    &#125;,</span><br><span class="line">    <span class="function"><span class="keyword">function</span>(<span class="params">name</span>) </span>&#123;</span><br><span class="line">      <span class="keyword">const</span> observable = <span class="keyword">this</span>.$mobx.values[name]</span><br><span class="line">      <span class="keyword">if</span> (</span><br><span class="line">        observable === <span class="literal">undefined</span></span><br><span class="line">      )</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">undefined</span></span><br><span class="line">      <span class="keyword">return</span> observable.get()</span><br><span class="line">    &#125;,</span><br><span class="line">    <span class="function"><span class="keyword">function</span>(<span class="params">name, value</span>) </span>&#123;</span><br><span class="line">      setPropertyValue(<span class="keyword">this</span>, name, value)</span><br><span class="line">    &#125;,</span><br><span class="line">    <span class="literal">true</span>,</span><br><span class="line">    <span class="literal">false</span></span><br><span class="line">  )</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>createClassPropertyDecorator 是一个工具函数，主要为了解决 ts 和 Babel 在处理 Decorator 时的差异。该函数返回一个通用的装饰器函数，签名如下：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">classPropertyDecorator</span>(<span class="params"></span></span></span><br><span class="line"><span class="function"><span class="params">    target: <span class="built_in">any</span>,</span></span></span><br><span class="line"><span class="function"><span class="params">    key: <span class="built_in">string</span>,</span></span></span><br><span class="line"><span class="function"><span class="params">    descriptor,</span></span></span><br><span class="line"><span class="function"><span class="params">    customArgs?: IArguments,</span></span></span><br><span class="line"><span class="function"><span class="params">    argLen: <span class="built_in">number</span> = 0</span></span></span><br><span class="line"><span class="function"><span class="params"></span>) </span>&#123;</span><br><span class="line">  <span class="comment">// ...</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>这个装饰器函数内部会先执行 createClassPropertyDecorator 传入的第一个函数，可以看到，这里传入的函数执行过程和第二篇中描述的在对象上定义可观察属性是一致的。然后这个装饰器函数内部会分别设置 get, set 访问器为第二、三个参数，可以看到，形式与 generateObservablePropConfig 中定义的也是一致的。</p>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+      <div>
+        <ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者：</strong>
+    郭琛
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="http://guochen-whu.github.io/2017/11/16/Mobx-源码解读（三）-Modifier/" title="Mobx 源码解读（三） Modifier">http://guochen-whu.github.io/2017/11/16/Mobx-源码解读（三）-Modifier/</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>
+    本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/3.0/" rel="external nofollow" target="_blank">CC BY-NC-SA 3.0</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+
+      </div>
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/Mobx/" rel="tag"># Mobx</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2017/11/15/Mobx-源码解读（二）-Observable/" rel="next" title="Mobx 源码解读（二） Observable">
+                <i class="fa fa-chevron-left"></i> Mobx 源码解读（二） Observable
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2017/11/17/Mobx-源码解读（四）-Reaction/" rel="prev" title="Mobx 源码解读（四） Reaction">
+                Mobx 源码解读（四） Reaction <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+    <div class="comments" id="comments">
+    </div>
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">郭琛</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">6</span>
+                  <span class="site-state-item-name">日志</span>
+                </a>
+              </div>
+            
+
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                <a href="/tags/index.html">
+                  <span class="site-state-item-count">1</span>
+                  <span class="site-state-item-name">标签</span>
+                </a>
+              </div>
+            
+
+          </nav>
+
+          
+            <div class="feed-link motion-element">
+              <a href="/atom.xml" rel="alternate">
+                <i class="fa fa-rss"></i>
+                RSS
+              </a>
+            </div>
+          
+
+          <div class="links-of-author motion-element">
+            
+              
+                <span class="links-of-author-item">
+                  <a href="https://github.com/GuoChen-WHU" target="_blank" title="GitHub">
+                    
+                      <i class="fa fa-fw fa-github"></i>GitHub</a>
+                </span>
+              
+                <span class="links-of-author-item">
+                  <a href="https://www.zhihu.com/people/guochen0908/" target="_blank" title="知乎">
+                    
+                      <i class="fa fa-fw fa-globe"></i>知乎</a>
+                </span>
+              
+                <span class="links-of-author-item">
+                  <a href="guochen0908@gmail.com" target="_blank" title="E-Mail">
+                    
+                      <i class="fa fa-fw fa-envelope"></i>E-Mail</a>
+                </span>
+              
+            
+          </div>
+
+          
+          
+            <div class="cc-license motion-element" itemprop="license">
+              <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" class="cc-opacity" target="_blank">
+                <img src="/images/cc-by-nc-sa.svg" alt="Creative Commons" />
+              </a>
+            </div>
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#基本原理"><span class="nav-number">1.</span> <span class="nav-text">基本原理</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#五种类型的-Modifier"><span class="nav-number">2.</span> <span class="nav-text">五种类型的 Modifier</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#observable-deep"><span class="nav-number">2.1.</span> <span class="nav-text">observable.deep</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#observable-ref"><span class="nav-number">2.2.</span> <span class="nav-text">observable.ref</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#observable-shallow"><span class="nav-number">2.3.</span> <span class="nav-text">observable.shallow</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#observable-struct-和-observable-ref-struct"><span class="nav-number">2.4.</span> <span class="nav-text">observable.struct 和 observable.ref.struct</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#作为-Decorator-使用的-Modifier"><span class="nav-number">3.</span> <span class="nav-text">作为 Decorator 使用的 Modifier</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2017</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">郭琛</span>
+
+  
+</div>
+
+
+  <div class="powered-by">由 <a class="theme-link" target="_blank" href="https://hexo.io">Hexo</a> 强力驱动</div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">主题 &mdash; <a class="theme-link" target="_blank" href="https://github.com/iissnan/hexo-theme-next">NexT.Mist</a> v5.1.3</div>
+
+
+
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.3"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.3"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.3"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.3"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.3"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  <script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+  <script src="//unpkg.com/valine/dist/Valine.min.js"></script>
+  
+  <script type="text/javascript">
+    var GUEST = ['nick','mail','link'];
+    var guest = 'nick,mail,link';
+    guest = guest.split(',').filter(item=>{
+      return GUEST.indexOf(item)>-1;
+    });
+    new Valine({
+        el: '#comments' ,
+        verify: false,
+        notify: false,
+        appId: 'hzMUeAPwB0mGWELHt6770yS4-gzGzoHsz',
+        appKey: 'ipDJ4X5UhJkfERUCcXsmSeUY',
+        placeholder: 'Just go go',
+        avatar:'mm',
+        guest_info:guest,
+        pageSize:'10' || 10,
+    });
+  </script>
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>

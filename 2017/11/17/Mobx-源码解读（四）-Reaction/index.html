@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="zh-Hans">
+<head>
+  <meta charset="UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css" />
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css" />
+
+<link href="/css/main.css?v=5.1.3" rel="stylesheet" type="text/css" />
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.3">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.3">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.3">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.3" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="Mobx," />
+
+
+
+
+
+  <link rel="alternate" href="/atom.xml" title="Blog" type="application/atom+xml" />
+
+
+
+
+
+
+<meta name="description" content="Reaction 是一类的特殊的 Derivation，可以注册响应函数，使之在条件满足时自动执行。常用于触发副作用，比如打印日志、更新 DOM 或者发送网络请求。">
+<meta name="keywords" content="Mobx">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Mobx 源码解读（四） Reaction">
+<meta property="og:url" content="http://guochen-whu.github.io/2017/11/17/Mobx-源码解读（四）-Reaction/index.html">
+<meta property="og:site_name" content="Blog">
+<meta property="og:description" content="Reaction 是一类的特殊的 Derivation，可以注册响应函数，使之在条件满足时自动执行。常用于触发副作用，比如打印日志、更新 DOM 或者发送网络请求。">
+<meta property="og:locale" content="zh-Hans">
+<meta property="og:image" content="http://guochen-whu.github.io/2017/11/17/Mobx-源码解读（四）-Reaction/Reaction示意.png">
+<meta property="og:updated_time" content="2017-12-02T03:48:52.405Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Mobx 源码解读（四） Reaction">
+<meta name="twitter:description" content="Reaction 是一类的特殊的 Derivation，可以注册响应函数，使之在条件满足时自动执行。常用于触发副作用，比如打印日志、更新 DOM 或者发送网络请求。">
+<meta name="twitter:image" content="http://guochen-whu.github.io/2017/11/17/Mobx-源码解读（四）-Reaction/Reaction示意.png">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '5.1.3',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: '博主'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://guochen-whu.github.io/2017/11/17/Mobx-源码解读（四）-Reaction/"/>
+
+
+
+
+
+  <title>Mobx 源码解读（四） Reaction | Blog</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/"  class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">Blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle"></p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br />
+            
+            首页
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-about">
+          <a href="/about/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-user"></i> <br />
+            
+            关于
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br />
+            
+            标签
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br />
+            
+            归档
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://guochen-whu.github.io/2017/11/17/Mobx-源码解读（四）-Reaction/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="郭琛">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">Mobx 源码解读（四） Reaction</h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+              <time title="创建于" itemprop="dateCreated datePublished" datetime="2017-11-17T12:39:39+08:00">
+                2017-11-17
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2017/11/17/Mobx-源码解读（四）-Reaction/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count valine-comment-count" data-xid="/2017/11/17/Mobx-源码解读（四）-Reaction/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+
+          
+
+          
+            <div class="post-wordcount">
+              
+                
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-file-word-o"></i>
+                </span>
+                
+                  <span class="post-meta-item-text">字数统计&#58;</span>
+                
+                <span title="字数统计">
+                  2,185 字
+                </span>
+              
+
+              
+                <span class="post-meta-divider">|</span>
+              
+
+              
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-clock-o"></i>
+                </span>
+                
+                  <span class="post-meta-item-text">阅读时长 &asymp;</span>
+                
+                <span title="阅读时长">
+                  10 分钟
+                </span>
+              
+            </div>
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <p>Reaction 是一类的特殊的 Derivation，可以注册响应函数，使之在条件满足时自动执行。常用于触发副作用，比如打印日志、更新 DOM 或者发送网络请求。</p>
+<a id="more"></a>
+<p>Reaction 的生命周期可以用下图表示：</p>
+<p><img src="./Reaction示意.png" alt="Reaction示意"></p>
+<ol>
+<li>Reaction 在创建之后初次执行或依赖过期时，会加入到全局的 pendingReactions 队列中</li>
+<li>pendingReactions 中的 Reaction 重新执行</li>
+<li>onInvalidate 调用，执行响应函数。</li>
+<li>响应函数执行，同时收集依赖，即「运行时依赖收集」</li>
+</ol>
+<p>使用 autorun, when 等 api，创建 Reaction 后，会立即执行该 Reaction 的 schedule 方法。第二篇中提到，Observable 在 reportChanged 时，也会调用这个方法将 Reaction 加入到全局的待执行队列中：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">schedule() &#123;</span><br><span class="line">  <span class="keyword">if</span> (!<span class="keyword">this</span>._isScheduled) &#123;</span><br><span class="line">    <span class="keyword">this</span>._isScheduled = <span class="literal">true</span></span><br><span class="line">    globalState.pendingReactions.push(<span class="keyword">this</span>)</span><br><span class="line">    runReactions()</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>与之前不同，这时的 runReactions 会立即执行 pendingReactions 中的所有 Reaction：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">runReactions</span>(<span class="params"></span>) </span>&#123;</span><br><span class="line">  <span class="comment">// 此时不在事务当中，且没有 Reaction 正在执行</span></span><br><span class="line">  <span class="keyword">if</span> (globalState.inBatch &gt; <span class="number">0</span> || globalState.isRunningReactions) <span class="keyword">return</span></span><br><span class="line">  reactionScheduler(runReactionsHelper)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>Reaction 初次执行时会第一次收集依赖，此后当依赖发生变化时，它被加入 pendingReactions 中，并在下一次事务结束时重新执行，更新依赖。接下来看看 Reaction 执行过程中是如何完成依赖的收集和更新的：</p>
+<h2 id="Reaction-执行过程"><a href="#Reaction-执行过程" class="headerlink" title="Reaction 执行过程"></a>Reaction 执行过程</h2><p>runReactionsHelper 依次执行 pendingReactions 中所有的 Reaction：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 设定 Reaction 计算的最大迭代次数，避免 Reaction 重新触发自身造成死循环</span></span><br><span class="line"><span class="keyword">const</span> MAX_REACTION_ITERATIONS = <span class="number">100</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// 实际执行 Reaction 重新计算的函数</span></span><br><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">runReactionsHelper</span>(<span class="params"></span>) </span>&#123;</span><br><span class="line">  globalState.isRunningReactions = <span class="literal">true</span></span><br><span class="line">  <span class="keyword">const</span> allReactions = globalState.pendingReactions</span><br><span class="line">  <span class="keyword">let</span> iterations = <span class="number">0</span></span><br><span class="line"></span><br><span class="line">  <span class="comment">// 当执行 Reaction 时，可能触发新的 Reaction(Reaction 内允许设置 Observable的值)，加入到 pendingReactions 中</span></span><br><span class="line">  <span class="comment">// 所以这里使用了两层循环，外层检查确保新加入的 Reaction 也会得到执行</span></span><br><span class="line">  <span class="comment">// 内层每次清空当前 Reaction 数组，并迭代处理当前所有 Reaction</span></span><br><span class="line">  <span class="keyword">while</span> (allReactions.length &gt; <span class="number">0</span>) &#123;</span><br><span class="line">    <span class="comment">// 限制最大迭代次数</span></span><br><span class="line">    <span class="keyword">if</span> (++iterations === MAX_REACTION_ITERATIONS) &#123;</span><br><span class="line">      <span class="built_in">console</span>.error(</span><br><span class="line">        <span class="string">`Reaction doesn't converge to a stable state after <span class="subst">$&#123;MAX_REACTION_ITERATIONS&#125;</span> iterations.`</span> +</span><br><span class="line">            <span class="string">` Probably there is a cycle in the reactive function: <span class="subst">$&#123;allReactions[0]&#125;</span>`</span></span><br><span class="line">      )</span><br><span class="line">      allReactions.splice(<span class="number">0</span>) <span class="comment">// 清空 pendingReactions 数组</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 清空 pendingReactions 数组，遍历所有 pendingReactions</span></span><br><span class="line">    <span class="keyword">let</span> remainingReactions = allReactions.splice(<span class="number">0</span>) </span><br><span class="line">    <span class="keyword">for</span> (<span class="keyword">let</span> i = <span class="number">0</span>, l = remainingReactions.length; i &lt; l; i++)</span><br><span class="line">      <span class="comment">// 依次调用 runReaction 方法</span></span><br><span class="line">      remainingReactions[i].runReaction()</span><br><span class="line">  &#125;</span><br><span class="line">  globalState.isRunningReactions = <span class="literal">false</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>pendingReactions 中的 Reaction 依次调用 runReaction 方法：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line">runReaction() &#123;</span><br><span class="line">  <span class="keyword">if</span> (!<span class="keyword">this</span>.isDisposed) &#123;</span><br><span class="line">    startBatch()</span><br><span class="line">    <span class="comment">// 「是否待重新计算」的标志置为 false</span></span><br><span class="line">    <span class="keyword">this</span>._isScheduled = <span class="literal">false</span></span><br><span class="line">    <span class="comment">// 根据 dependenciesState 判断是否需要重新计算，-1,0,2三种状态好判断，</span></span><br><span class="line">    <span class="comment">// 计算值特有的1状态参看本系列第三篇文章</span></span><br><span class="line">    <span class="keyword">if</span> (shouldCompute(<span class="keyword">this</span>)) &#123;</span><br><span class="line">      <span class="comment">// 「正在收集依赖过程中」的标志置为 true</span></span><br><span class="line">      <span class="keyword">this</span>._isTrackPending = <span class="literal">true</span></span><br><span class="line"></span><br><span class="line">      <span class="comment">// 构造时传入的 onInvalidate</span></span><br><span class="line">      <span class="keyword">this</span>.onInvalidate()</span><br><span class="line">      <span class="comment">// 通知 spy</span></span><br><span class="line">      <span class="keyword">if</span> (<span class="keyword">this</span>._isTrackPending &amp;&amp; isSpyEnabled()) &#123;</span><br><span class="line">        spyReport(&#123;</span><br><span class="line">          object: <span class="keyword">this</span>,</span><br><span class="line">          <span class="keyword">type</span>: <span class="string">"scheduled-reaction"</span></span><br><span class="line">        &#125;)</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    endBatch()</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>注意这里调用了 onInvalidate，该函数可以在响应函数执行之前做一些判断，控制响应函数执行的「时机」。</p>
+<p>Mobx 提供了 autorun, when, autorunAsync 等 api 用于创建 Reaction，它们的区别就在于构造 Reaction 时传入的 onInvalidate 函数不同：</p>
+<h2 id="不同类型的-Reaction"><a href="#不同类型的-Reaction" class="headerlink" title="不同类型的 Reaction"></a>不同类型的 Reaction</h2><h3 id="autorun"><a href="#autorun" class="headerlink" title="autorun"></a>autorun</h3><p>autorun 的 onInvalidate 会直接执行 Reaction 的 track 方法，也就是说，只要 Reaction 执行，就会执行响应函数：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">autorun</span>(<span class="params">arg1: <span class="built_in">any</span>, arg2: <span class="built_in">any</span>, arg3?: <span class="built_in">any</span></span>) </span>&#123;</span><br><span class="line">  <span class="keyword">let</span> name: <span class="built_in">string</span>, view: <span class="function">(<span class="params">r: IReactionPublic</span>) =&gt;</span> <span class="built_in">any</span>, scope: <span class="built_in">any</span></span><br><span class="line">  <span class="comment">// 参数处理...</span></span><br><span class="line"></span><br><span class="line">  <span class="comment">// 可以提供 this 值作为第三个参数</span></span><br><span class="line">  <span class="keyword">if</span> (scope) view = view.bind(scope)</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 第二个参数即`onInvalidate`</span></span><br><span class="line">  <span class="comment">// onInvalidate 未进行任何判断，直接调用 track 方法</span></span><br><span class="line">  <span class="keyword">const</span> reaction = <span class="keyword">new</span> Reaction(name, <span class="function"><span class="keyword">function</span>(<span class="params"></span>) </span>&#123;</span><br><span class="line">    <span class="keyword">this</span>.track(reactionRunner)</span><br><span class="line">  &#125;)</span><br><span class="line"></span><br><span class="line">  <span class="comment">// view 即我们传入的函数，可以拿到 Reaction 实例作为参数</span></span><br><span class="line">  <span class="function"><span class="keyword">function</span> <span class="title">reactionRunner</span>(<span class="params"></span>) </span>&#123;</span><br><span class="line">    view(reaction)</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 调用 schedule 方法，第一次执行并收集依赖</span></span><br><span class="line">  reaction.schedule()</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 返回该 Reaction 的 Disposer</span></span><br><span class="line">  <span class="keyword">return</span> reaction.getDisposer()</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="autorunAsync"><a href="#autorunAsync" class="headerlink" title="autorunAsync"></a>autorunAsync</h3><blockquote>
+<p>autorunAsync(action: () =&gt; void, minimumDelay?: number, scope?)</p>
+</blockquote>
+<p>节流版 autorun，在 minimumDelay 时间内只会执行一次响应函数。通过在 onInvalidate 内做节流处理来实现：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">autorunAsync</span>(<span class="params">arg1: <span class="built_in">any</span>, arg2: <span class="built_in">any</span>, arg3?: <span class="built_in">any</span>, arg4?: <span class="built_in">any</span></span>) </span>&#123;</span><br><span class="line">  <span class="keyword">let</span> name: <span class="built_in">string</span>, func: <span class="function">(<span class="params">r: IReactionPublic</span>) =&gt;</span> <span class="built_in">any</span>, delay: <span class="built_in">number</span>, scope: <span class="built_in">any</span></span><br><span class="line">  <span class="comment">// 参数处理...</span></span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (scope) func = func.bind(scope)</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 节流处理</span></span><br><span class="line">  <span class="keyword">let</span> isScheduled = <span class="literal">false</span></span><br><span class="line">  <span class="keyword">const</span> r = <span class="keyword">new</span> Reaction(name, <span class="function"><span class="params">()</span> =&gt;</span> &#123;</span><br><span class="line">    <span class="keyword">if</span> (!isScheduled) &#123;</span><br><span class="line">      isScheduled = <span class="literal">true</span></span><br><span class="line">      setTimeout(<span class="function"><span class="params">()</span> =&gt;</span> &#123;</span><br><span class="line">        isScheduled = <span class="literal">false</span></span><br><span class="line">        <span class="keyword">if</span> (!r.isDisposed) r.track(reactionRunner)</span><br><span class="line">      &#125;, delay)</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;)</span><br><span class="line"></span><br><span class="line">  <span class="function"><span class="keyword">function</span> <span class="title">reactionRunner</span>(<span class="params"></span>) </span>&#123;</span><br><span class="line">    func(r)</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  r.schedule()</span><br><span class="line">  <span class="keyword">return</span> r.getDisposer()</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="when"><a href="#when" class="headerlink" title="when"></a>when</h3><blockquote>
+<p>when(debugName?, predicate: () =&gt; boolean, effect: () =&gt; void, scope?)</p>
+</blockquote>
+<p>when 在 predicate 函数返回 true 时执行，通过在 onInvalidate 进行这个判断来实现。另外，它只执行一次就销毁，所以它的 onInvalidate 不调用 track 去收集依赖，直接执行响应函数：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">when</span>(<span class="params">arg1: <span class="built_in">any</span>, arg2: <span class="built_in">any</span>, arg3?: <span class="built_in">any</span>, arg4?: <span class="built_in">any</span></span>) </span>&#123;</span><br><span class="line">  <span class="keyword">let</span> name: <span class="built_in">string</span>, predicate: <span class="function"><span class="params">()</span> =&gt;</span> <span class="built_in">boolean</span>, effect: Lambda, scope: <span class="built_in">any</span></span><br><span class="line">  <span class="comment">// 参数处理...</span></span><br><span class="line"></span><br><span class="line">  <span class="keyword">const</span> disposer = autorun(name, <span class="function"><span class="params">r</span> =&gt;</span> &#123;</span><br><span class="line">    <span class="comment">// 满足 predicate</span></span><br><span class="line">    <span class="keyword">if</span> (predicate.call(scope)) &#123;</span><br><span class="line">      r.dispose()</span><br><span class="line">      <span class="keyword">const</span> prevUntracked = untrackedStart()</span><br><span class="line">      <span class="comment">// 直接执行 effect</span></span><br><span class="line">      ;(effect <span class="keyword">as</span> <span class="built_in">any</span>).call(scope)</span><br><span class="line">      untrackedEnd(prevUntracked)</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;)</span><br><span class="line">  <span class="keyword">return</span> disposer</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="运行时依赖收集"><a href="#运行时依赖收集" class="headerlink" title="运行时依赖收集"></a>运行时依赖收集</h2><p>Reaction 的 track 方法会执行响应函数并进行依赖收集，也就是「运行时依赖收集」的过程。</p>
+<p>track 方法本身只是做了开始一个新事务，一些标志属性的修改和通知 spy 等工作。</p>
+<p>运行时依赖收集的核心步骤在 trackDerivedFunction 函数中：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 执行响应函数，同时收集依赖</span></span><br><span class="line">function trackDerivedFunction&lt;T&gt;(derivation: IDerivation, f: () =&gt; T, context) &#123;</span><br><span class="line">  <span class="comment">// 将该 Derivation 的 dependenciesState 和当前所有依赖的 lowestObserverState 设为最新</span></span><br><span class="line">  changeDependenciesStateTo0(derivation)</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 预分配足够的空间？？</span></span><br><span class="line">  derivation.newObserving = <span class="keyword">new</span> <span class="built_in">Array</span>(derivation.observing.length + <span class="number">100</span>)</span><br><span class="line">  <span class="comment">// 记录新的依赖的数量</span></span><br><span class="line">  derivation.unboundDepsCount = <span class="number">0</span></span><br><span class="line">  <span class="comment">// 每次执行都分配一个 uid</span></span><br><span class="line">  derivation.runId = ++globalState.runId</span><br><span class="line">  <span class="comment">// 当前 Derivation 记录到全局的 trackingDerivation 中，这样被观察的 Observable 在其 reportObserved 方法中</span></span><br><span class="line">  <span class="comment">// 就能获取到该 Derivation</span></span><br><span class="line">  <span class="keyword">const</span> prevTracking = globalState.trackingDerivation</span><br><span class="line">  globalState.trackingDerivation = derivation</span><br><span class="line">  <span class="keyword">let</span> result</span><br><span class="line">  <span class="keyword">try</span> &#123;</span><br><span class="line">    <span class="comment">// 执行响应函数，收集使用到的所有依赖，加入 newObserving 数组中</span></span><br><span class="line">    result = f.call(context)</span><br><span class="line">  &#125; <span class="keyword">catch</span> (e) &#123;</span><br><span class="line">    result = <span class="keyword">new</span> CaughtException(e)</span><br><span class="line">  &#125;</span><br><span class="line">  globalState.trackingDerivation = prevTracking</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 比较新旧依赖，更新依赖</span></span><br><span class="line">  bindDependencies(derivation)</span><br><span class="line">  <span class="keyword">return</span> result</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>注意响应函数调用时不仅仅是执行了该函数，还触发了所有被观察的 Observable 的 reportObserved 方法，从而更新了当前 Derivation 的 newObserving 数组。这部分内容可以回顾第二篇。</p>
+<p>再来看看 bindDependencies 方法如何更新依赖：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">bindDependencies</span>(<span class="params">derivation: IDerivation</span>) </span>&#123;</span><br><span class="line">  <span class="keyword">const</span> prevObserving = derivation.observing</span><br><span class="line">  <span class="keyword">const</span> observing = (derivation.observing = derivation.newObserving!)</span><br><span class="line">  <span class="comment">// 记录更新依赖过程中，新观察的 Derivation 的最新状态</span></span><br><span class="line">  <span class="keyword">let</span> lowestNewObservingDerivationState = IDerivationState.UP_TO_DATE</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 遍历新的 observing 数组，使用 diffValue 这个属性来辅助 diff 过程：</span></span><br><span class="line">  <span class="comment">// 所有 Observable 的 diffValue 初值都是0（要么刚被创建，继承自 BaseAtom 的初值0；</span></span><br><span class="line">  <span class="comment">// 要么经过上次的 bindDependencies 后，置为了0）</span></span><br><span class="line">  <span class="comment">// 如果 diffValue 为0，保留该 Observable，并将 diffValue 置为1</span></span><br><span class="line">  <span class="comment">// 如果 diffValue 为1，说明是重复的依赖，无视掉</span></span><br><span class="line">  <span class="keyword">let</span> i0 = <span class="number">0</span>,</span><br><span class="line">	l = derivation.unboundDepsCount</span><br><span class="line">  <span class="keyword">for</span> (<span class="keyword">let</span> i = <span class="number">0</span>; i &lt; l; i++) &#123;</span><br><span class="line">    <span class="keyword">const</span> dep = observing[i]</span><br><span class="line">    <span class="keyword">if</span> (dep.diffValue === <span class="number">0</span>) &#123;</span><br><span class="line">      dep.diffValue = <span class="number">1</span></span><br><span class="line">      <span class="comment">// i0 不等于 i，即前面有重复的 dep 被无视，依次往前移覆盖</span></span><br><span class="line">      <span class="keyword">if</span> (i0 !== i) observing[i0] = dep</span><br><span class="line">      i0++</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 更新 lowestNewObservingDerivationState </span></span><br><span class="line">    <span class="keyword">if</span> (((dep <span class="keyword">as</span> <span class="built_in">any</span>) <span class="keyword">as</span> IDerivation).dependenciesState &gt; lowestNewObservingDerivationState) &#123;</span><br><span class="line">      lowestNewObservingDerivationState = ((dep <span class="keyword">as</span> <span class="built_in">any</span>) <span class="keyword">as</span> IDerivation).dependenciesState</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">  observing.length = i0</span><br><span class="line"></span><br><span class="line">	derivation.newObserving = <span class="literal">null</span> </span><br><span class="line">  <span class="comment">// 遍历 prevObserving 数组，检查 diffValue：(经过上一次的 bindDependencies后，该数组中不会有重复)</span></span><br><span class="line">  <span class="comment">// 如果为0，说明没有在 newObserving 中出现，调用 removeObserver 将 dep 和 derivation 间的联系移除</span></span><br><span class="line">  <span class="comment">// 如果为1，依然被观察，将 diffValue 置为0（在下面的循环有用处）</span></span><br><span class="line">  l = prevObserving.length</span><br><span class="line">  <span class="keyword">while</span> (l--) &#123;</span><br><span class="line">    <span class="keyword">const</span> dep = prevObserving[l]</span><br><span class="line">    <span class="keyword">if</span> (dep.diffValue === <span class="number">0</span>) &#123;</span><br><span class="line">      removeObserver(dep, derivation)</span><br><span class="line">    &#125;</span><br><span class="line">    dep.diffValue = <span class="number">0</span></span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 再次遍历新的 observing 数组，检查 diffValue</span></span><br><span class="line">  <span class="comment">// 如果为0，说明是在上面的循环中置为了0，即是本来就被观察的依赖，什么都不做</span></span><br><span class="line">  <span class="comment">// 如果为1，说明是新增的依赖，调用 addObserver 新增依赖，并将 diffValue 置为0，为下一次 bindDependencies 做准备</span></span><br><span class="line">  <span class="keyword">while</span> (i0--) &#123;</span><br><span class="line">    <span class="keyword">const</span> dep = observing[i0]</span><br><span class="line">    <span class="keyword">if</span> (dep.diffValue === <span class="number">1</span>) &#123;</span><br><span class="line">      dep.diffValue = <span class="number">0</span></span><br><span class="line">      addObserver(dep, derivation)</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 某些新观察的 Derivation 可能在依赖更新过程中过期</span></span><br><span class="line">  <span class="comment">// 避免这些 Derivation 没有机会传播过期的信息（#916）</span></span><br><span class="line">  <span class="keyword">if</span> (lowestNewObservingDerivationState !== IDerivationState.UP_TO_DATE) &#123;</span><br><span class="line">    derivation.dependenciesState = lowestNewObservingDerivationState</span><br><span class="line">    derivation.onBecomeStale()</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>朴素算法比较新旧 observing 数组的时间复杂度为 O(n^2)，这里借助 diffValue 属性的辅助将复杂度降到了 O(n)。</p>
+<p>这样 Reaction 的执行完成，其依赖也得到了更新。当依赖发生变化后，Reaction 会被加入 pendingReactions 中，并重复上述过程。</p>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+      <div>
+        <ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者：</strong>
+    郭琛
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="http://guochen-whu.github.io/2017/11/17/Mobx-源码解读（四）-Reaction/" title="Mobx 源码解读（四） Reaction">http://guochen-whu.github.io/2017/11/17/Mobx-源码解读（四）-Reaction/</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>
+    本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/3.0/" rel="external nofollow" target="_blank">CC BY-NC-SA 3.0</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+
+      </div>
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/Mobx/" rel="tag"># Mobx</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2017/11/16/Mobx-源码解读（三）-Modifier/" rel="next" title="Mobx 源码解读（三） Modifier">
+                <i class="fa fa-chevron-left"></i> Mobx 源码解读（三） Modifier
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2017/11/17/Mobx-源码解读（六）-Action/" rel="prev" title="Mobx 源码解读（六） Action">
+                Mobx 源码解读（六） Action <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+    <div class="comments" id="comments">
+    </div>
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">郭琛</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">6</span>
+                  <span class="site-state-item-name">日志</span>
+                </a>
+              </div>
+            
+
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                <a href="/tags/index.html">
+                  <span class="site-state-item-count">1</span>
+                  <span class="site-state-item-name">标签</span>
+                </a>
+              </div>
+            
+
+          </nav>
+
+          
+            <div class="feed-link motion-element">
+              <a href="/atom.xml" rel="alternate">
+                <i class="fa fa-rss"></i>
+                RSS
+              </a>
+            </div>
+          
+
+          <div class="links-of-author motion-element">
+            
+              
+                <span class="links-of-author-item">
+                  <a href="https://github.com/GuoChen-WHU" target="_blank" title="GitHub">
+                    
+                      <i class="fa fa-fw fa-github"></i>GitHub</a>
+                </span>
+              
+                <span class="links-of-author-item">
+                  <a href="https://www.zhihu.com/people/guochen0908/" target="_blank" title="知乎">
+                    
+                      <i class="fa fa-fw fa-globe"></i>知乎</a>
+                </span>
+              
+                <span class="links-of-author-item">
+                  <a href="guochen0908@gmail.com" target="_blank" title="E-Mail">
+                    
+                      <i class="fa fa-fw fa-envelope"></i>E-Mail</a>
+                </span>
+              
+            
+          </div>
+
+          
+          
+            <div class="cc-license motion-element" itemprop="license">
+              <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" class="cc-opacity" target="_blank">
+                <img src="/images/cc-by-nc-sa.svg" alt="Creative Commons" />
+              </a>
+            </div>
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#Reaction-执行过程"><span class="nav-number">1.</span> <span class="nav-text">Reaction 执行过程</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#不同类型的-Reaction"><span class="nav-number">2.</span> <span class="nav-text">不同类型的 Reaction</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#autorun"><span class="nav-number">2.1.</span> <span class="nav-text">autorun</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#autorunAsync"><span class="nav-number">2.2.</span> <span class="nav-text">autorunAsync</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#when"><span class="nav-number">2.3.</span> <span class="nav-text">when</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#运行时依赖收集"><span class="nav-number">3.</span> <span class="nav-text">运行时依赖收集</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2017</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">郭琛</span>
+
+  
+</div>
+
+
+  <div class="powered-by">由 <a class="theme-link" target="_blank" href="https://hexo.io">Hexo</a> 强力驱动</div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">主题 &mdash; <a class="theme-link" target="_blank" href="https://github.com/iissnan/hexo-theme-next">NexT.Mist</a> v5.1.3</div>
+
+
+
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.3"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.3"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.3"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.3"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.3"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  <script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+  <script src="//unpkg.com/valine/dist/Valine.min.js"></script>
+  
+  <script type="text/javascript">
+    var GUEST = ['nick','mail','link'];
+    var guest = 'nick,mail,link';
+    guest = guest.split(',').filter(item=>{
+      return GUEST.indexOf(item)>-1;
+    });
+    new Valine({
+        el: '#comments' ,
+        verify: false,
+        notify: false,
+        appId: 'hzMUeAPwB0mGWELHt6770yS4-gzGzoHsz',
+        appKey: 'ipDJ4X5UhJkfERUCcXsmSeUY',
+        placeholder: 'Just go go',
+        avatar:'mm',
+        guest_info:guest,
+        pageSize:'10' || 10,
+    });
+  </script>
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>

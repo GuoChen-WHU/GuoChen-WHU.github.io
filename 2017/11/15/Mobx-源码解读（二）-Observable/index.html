@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="zh-Hans">
+<head>
+  <meta charset="UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css" />
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css" />
+
+<link href="/css/main.css?v=5.1.3" rel="stylesheet" type="text/css" />
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.3">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.3">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.3">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.3" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="Mobx," />
+
+
+
+
+
+  <link rel="alternate" href="/atom.xml" title="Blog" type="application/atom+xml" />
+
+
+
+
+
+
+<meta name="description" content="Mobx 提供了三种可观察的数据类型：对象、数组和 Map。Mobx 内部做了大量的工作，使它们的使用体验和原生 JS 类型一致，通过 observable api 包装后就可以转换成可观察值，使用时无须额外的方法调用。对于其它类型的值，Mobx 提供了 observable.box，包装之后使用其 get, set ">
+<meta name="keywords" content="Mobx">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Mobx 源码解读（二） Observable">
+<meta property="og:url" content="http://guochen-whu.github.io/2017/11/15/Mobx-源码解读（二）-Observable/index.html">
+<meta property="og:site_name" content="Blog">
+<meta property="og:description" content="Mobx 提供了三种可观察的数据类型：对象、数组和 Map。Mobx 内部做了大量的工作，使它们的使用体验和原生 JS 类型一致，通过 observable api 包装后就可以转换成可观察值，使用时无须额外的方法调用。对于其它类型的值，Mobx 提供了 observable.box，包装之后使用其 get, set 方法来获取和设置值，也可以达到「可观察」的效果。 第一篇中提到，Observab">
+<meta property="og:locale" content="zh-Hans">
+<meta property="og:image" content="http://guochen-whu.github.io/2017/11/15/Mobx-源码解读（二）-Observable/ObservableObject示意图.png">
+<meta property="og:image" content="http://guochen-whu.github.io/2017/11/15/Mobx-源码解读（二）-Observable/ObservableArray示意图.png">
+<meta property="og:image" content="http://guochen-whu.github.io/2017/11/15/Mobx-源码解读（二）-Observable/ObservableMap示意.png">
+<meta property="og:updated_time" content="2017-11-30T14:24:22.506Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Mobx 源码解读（二） Observable">
+<meta name="twitter:description" content="Mobx 提供了三种可观察的数据类型：对象、数组和 Map。Mobx 内部做了大量的工作，使它们的使用体验和原生 JS 类型一致，通过 observable api 包装后就可以转换成可观察值，使用时无须额外的方法调用。对于其它类型的值，Mobx 提供了 observable.box，包装之后使用其 get, set 方法来获取和设置值，也可以达到「可观察」的效果。 第一篇中提到，Observab">
+<meta name="twitter:image" content="http://guochen-whu.github.io/2017/11/15/Mobx-源码解读（二）-Observable/ObservableObject示意图.png">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '5.1.3',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: '博主'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://guochen-whu.github.io/2017/11/15/Mobx-源码解读（二）-Observable/"/>
+
+
+
+
+
+  <title>Mobx 源码解读（二） Observable | Blog</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/"  class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">Blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle"></p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br />
+            
+            首页
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-about">
+          <a href="/about/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-user"></i> <br />
+            
+            关于
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br />
+            
+            标签
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br />
+            
+            归档
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://guochen-whu.github.io/2017/11/15/Mobx-源码解读（二）-Observable/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="郭琛">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">Mobx 源码解读（二） Observable</h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+              <time title="创建于" itemprop="dateCreated datePublished" datetime="2017-11-15T21:56:22+08:00">
+                2017-11-15
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2017/11/15/Mobx-源码解读（二）-Observable/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count valine-comment-count" data-xid="/2017/11/15/Mobx-源码解读（二）-Observable/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+
+          
+
+          
+            <div class="post-wordcount">
+              
+                
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-file-word-o"></i>
+                </span>
+                
+                  <span class="post-meta-item-text">字数统计&#58;</span>
+                
+                <span title="字数统计">
+                  4,818 字
+                </span>
+              
+
+              
+                <span class="post-meta-divider">|</span>
+              
+
+              
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-clock-o"></i>
+                </span>
+                
+                  <span class="post-meta-item-text">阅读时长 &asymp;</span>
+                
+                <span title="阅读时长">
+                  22 分钟
+                </span>
+              
+            </div>
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <p>Mobx 提供了三种可观察的数据类型：对象、数组和 Map。Mobx 内部做了大量的工作，使它们的使用体验和原生 JS 类型一致，通过 observable api 包装后就可以转换成可观察值，使用时无须额外的方法调用。对于其它类型的值，Mobx 提供了 observable.box，包装之后使用其 get, set 方法来获取和设置值，也可以达到「可观察」的效果。</p>
+<p>第一篇中提到，Observable 使用 reportObserved 和 propagateChanged 函数通知自身「被观察」和「发生变化」。将值变得可观察的关键步骤就在于触发这两个函数的调用，先来看看不同类型的 Observable 是如何实现这一点的。</p>
+<a id="more"></a>
+<h2 id="如何变得「可观察」"><a href="#如何变得「可观察」" class="headerlink" title="如何变得「可观察」"></a>如何变得「可观察」</h2><p>Mobx 提供的 API observable，实际上是一个工厂函数 createObservable：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">createObservable</span>(<span class="params">v: <span class="built_in">any</span> = <span class="literal">undefined</span></span>) </span>&#123;</span><br><span class="line">  <span class="comment">// observable 作为属性装饰器使用</span></span><br><span class="line">  <span class="comment">// 默认使用 deepDecorator，它是 deepEnhancer 对应的 Decorator</span></span><br><span class="line">  <span class="keyword">if</span> (<span class="keyword">typeof</span> <span class="built_in">arguments</span>[<span class="number">1</span>] === <span class="string">"string"</span>) <span class="keyword">return</span> deepDecorator.apply(<span class="literal">null</span>, <span class="built_in">arguments</span>)</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (isObservable(v)) <span class="keyword">return</span> v</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 默认使用 deepEnhancer 包装</span></span><br><span class="line">  <span class="keyword">const</span> res = deepEnhancer(v, <span class="literal">undefined</span>, <span class="literal">undefined</span>)</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 包装后转换为了「可观察的」的数据结构</span></span><br><span class="line">  <span class="keyword">if</span> (res !== v) <span class="keyword">return</span> res</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 否则，调用 observable.box 包装</span></span><br><span class="line">  <span class="keyword">return</span> observable.box(v)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 导出 observable api</span></span><br><span class="line"><span class="keyword">export</span> <span class="keyword">const</span> observable: IObservableFactory &amp;</span><br><span class="line">  IObservableFactories &amp; &#123;</span><br><span class="line">    deep: &#123;</span><br><span class="line">      struct&lt;T&gt;(initialValue?: T): T</span><br><span class="line">    &#125;</span><br><span class="line">    ref: &#123;</span><br><span class="line">      struct&lt;T&gt;(initialValue?: T): T</span><br><span class="line">    &#125;</span><br><span class="line">  &#125; = createObservable <span class="keyword">as</span> <span class="built_in">any</span></span><br></pre></td></tr></table></figure>
+<p>deepEnhancer 是 Mobx 默认的 Modifier（关于 Modifier 可以参看第三篇），会对对象、数组和 Map 进行处理：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">deepEnhancer</span>(<span class="params">v, _, name</span>) </span>&#123;</span><br><span class="line">  <span class="keyword">if</span> (isObservable(v)) <span class="keyword">return</span> v</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (<span class="built_in">Array</span>.isArray(v)) <span class="keyword">return</span> observable.array(v, name)</span><br><span class="line">  <span class="keyword">if</span> (isPlainObject(v)) <span class="keyword">return</span> observable.object(v, name)</span><br><span class="line">  <span class="keyword">if</span> (isES6Map(v)) <span class="keyword">return</span> observable.map(v, name)</span><br><span class="line"></span><br><span class="line">  <span class="keyword">return</span> v</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>可以看到，对于其他类型的值，deepEnhancer 原样返回，从而在 createObservable 中会使用 observable.box 进行包装。先来看看最简单的 observable.box 如何使传入的值可观察。</p>
+<h3 id="Box"><a href="#Box" class="headerlink" title="Box"></a>Box</h3><p>observable.box 方法简单地返回一个 ObservableValue 实例。</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">box&lt;T&gt;(value?: T, name?: <span class="built_in">string</span>): IObservableValue&lt;T&gt; &#123;</span><br><span class="line">    <span class="keyword">if</span> (<span class="built_in">arguments</span>.length &gt; <span class="number">2</span>) incorrectlyUsedAsDecorator(<span class="string">"box"</span>)</span><br><span class="line">    <span class="keyword">return</span> <span class="keyword">new</span> ObservableValue(value, deepEnhancer, name)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>ObservableValue 实现了 get 和 set 方法，用户在使用时自行使用这两个方法获取和设置「可观察原始值」的值，那么实现「可观察」就只需在这两个方法内分别去调用 reportObserved 和 reportChanged 即可：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">set</span>(newValue: T) &#123;</span><br><span class="line">  <span class="keyword">const</span> oldValue = <span class="keyword">this</span>.value</span><br><span class="line">  newValue = <span class="keyword">this</span>.prepareNewValue(newValue) <span class="keyword">as</span> <span class="built_in">any</span></span><br><span class="line">  <span class="keyword">if</span> (newValue !== UNCHANGED) &#123;</span><br><span class="line">    <span class="comment">// ...</span></span><br><span class="line">    <span class="comment">// 发生变化，设置新值</span></span><br><span class="line">    <span class="keyword">this</span>.setNewValue(newValue)</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 做一些新值的预处理工作</span></span><br><span class="line"><span class="keyword">private</span> prepareNewValue(newValue): T | IUNCHANGED &#123;</span><br><span class="line">  <span class="comment">// 检查两个边界情况</span></span><br><span class="line">  checkIfStateModificationsAreAllowed(<span class="keyword">this</span>)</span><br><span class="line">  <span class="comment">// ...</span></span><br><span class="line">  <span class="comment">// 经过 Enhancer 包装</span></span><br><span class="line">  newValue = <span class="keyword">this</span>.enhancer(newValue, <span class="keyword">this</span>.value, <span class="keyword">this</span>.name)</span><br><span class="line">  <span class="keyword">return</span> <span class="keyword">this</span>.value !== newValue ? newValue : UNCHANGED</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">setNewValue(newValue: T) &#123;</span><br><span class="line">  <span class="keyword">const</span> oldValue = <span class="keyword">this</span>.value</span><br><span class="line">  <span class="keyword">this</span>.value = newValue</span><br><span class="line">  <span class="comment">// reportChanged 方法继承自 BaseAtom</span></span><br><span class="line">  <span class="keyword">this</span>.reportChanged()</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">get</span>(): T &#123;</span><br><span class="line">  <span class="comment">// reportObserved 方法继承自 BaseAtom</span></span><br><span class="line">  <span class="keyword">this</span>.reportObserved()</span><br><span class="line">  <span class="comment">// 使用 Enhancer 相应的 Dehancer 获取包装前的值</span></span><br><span class="line">  <span class="keyword">return</span> <span class="keyword">this</span>.dehanceValue(<span class="keyword">this</span>.value)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="对象"><a href="#对象" class="headerlink" title="对象"></a>对象</h3><p>observable.object 方法将对象变为可观察的，它实际上是把对象的所有属性转换为可观察的，存放到一个代理对象上，以减少对原对象的污染：</p>
+<p><img src="./ObservableObject示意图.png" alt="ObservableObject示意图"></p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// observable.object</span></span><br><span class="line">object&lt;T&gt;(props: T, name?: <span class="built_in">string</span>): T &amp; IObservableObject &#123;</span><br><span class="line">  <span class="keyword">if</span> (<span class="built_in">arguments</span>.length &gt; <span class="number">2</span>) incorrectlyUsedAsDecorator(<span class="string">"object"</span>)</span><br><span class="line">  <span class="keyword">const</span> res = &#123;&#125;</span><br><span class="line">  <span class="comment">// 创建代理对象</span></span><br><span class="line">  asObservableObject(res, name)</span><br><span class="line">  <span class="comment">// 添加可观察属性</span></span><br><span class="line">  extendObservable(res, props)</span><br><span class="line">  <span class="keyword">return</span> res <span class="keyword">as</span> <span class="built_in">any</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>asObservableObject 函数为对象创建一个「可观察对象」作为代理对象，按照源码中的命名，我们称之为「admin 对象」。admin 对象的 target 属性指向原对象，并作为隐藏属性添加到原对象上。它的实现如下：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">asObservableObject</span>(<span class="params">target, name?: <span class="built_in">string</span></span>): <span class="title">ObservableObjectAdministration</span> </span>&#123;</span><br><span class="line">  <span class="comment">// admin 对象已经存在，直接返回</span></span><br><span class="line">  <span class="keyword">if</span> (isObservableObject(target) &amp;&amp; target.hasOwnProperty(<span class="string">"$mobx"</span>)) <span class="keyword">return</span> (target <span class="keyword">as</span> <span class="built_in">any</span>).$mobx</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (!isPlainObject(target))</span><br><span class="line">    name = (target.constructor.name || <span class="string">"ObservableObject"</span>) + <span class="string">"@"</span> + getNextId()</span><br><span class="line">  <span class="keyword">if</span> (!name) name = <span class="string">"ObservableObject@"</span> + getNextId()</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 创建 admin 对象</span></span><br><span class="line">  <span class="keyword">const</span> adm = <span class="keyword">new</span> ObservableObjectAdministration(target, name)</span><br><span class="line">  <span class="comment">// 作为隐藏属性添加到原对象上</span></span><br><span class="line">  addHiddenFinalProp(target, <span class="string">"$mobx"</span>, adm)</span><br><span class="line">  <span class="keyword">return</span> adm</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>admin 对象通过 addHiddenFinalProp 方法，作为一个隐藏属性添加到原对象上。使用 ES5 的 Object.defineProperty 定义一个不可枚举的属性即可实现：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">addHiddenProp</span>(<span class="params">object: <span class="built_in">any</span>, propName: <span class="built_in">string</span>, value: <span class="built_in">any</span></span>) </span>&#123;</span><br><span class="line">  <span class="built_in">Object</span>.defineProperty(object, propName, &#123;</span><br><span class="line">    enumerable: <span class="literal">false</span>,</span><br><span class="line">    writable: <span class="literal">true</span>,</span><br><span class="line">    configurable: <span class="literal">true</span>,</span><br><span class="line">    value</span><br><span class="line">  &#125;)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>admin 对象的 values 属性上用于存放原对象的属性，不同的是，这些属性都是经过 Enhancer 包装过的可观察属性。</p>
+<p>接下来就是调用 extendObservable 来生成这些可观察属性：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">extendObservable</span>&lt;<span class="title">A</span> <span class="title">extends</span> <span class="title">Object</span>, <span class="title">B</span> <span class="title">extends</span> <span class="title">Object</span>&gt;(<span class="params"></span></span></span><br><span class="line"><span class="function"><span class="params">  target: A,</span></span></span><br><span class="line"><span class="function"><span class="params">  ...properties: B[] <span class="comment">// 可以接受多组 props</span></span></span></span><br><span class="line"><span class="function"><span class="params"></span>): <span class="title">A</span> &amp; <span class="title">B</span> </span>&#123;</span><br><span class="line">  <span class="comment">// 使用 deepEnhancer，对复杂类型的属性会递归执行</span></span><br><span class="line">  <span class="keyword">return</span> extendObservableHelper(target, deepEnhancer, properties) <span class="keyword">as</span> <span class="built_in">any</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">extendObservableHelper</span>(<span class="params"></span></span></span><br><span class="line"><span class="function"><span class="params">  target: <span class="built_in">Object</span>,</span></span></span><br><span class="line"><span class="function"><span class="params">  defaultEnhancer: IEnhancer&lt;<span class="built_in">any</span>&gt;,</span></span></span><br><span class="line"><span class="function"><span class="params">  properties: <span class="built_in">Object</span>[]</span></span></span><br><span class="line"><span class="function"><span class="params"></span>): <span class="title">Object</span> </span>&#123;</span><br><span class="line">  <span class="keyword">const</span> adm = asObservableObject(target)</span><br><span class="line">  <span class="comment">// 避免多组 props 可能有重复</span></span><br><span class="line">  <span class="keyword">const</span> definedProps = &#123;&#125;</span><br><span class="line">  <span class="keyword">for</span> (<span class="keyword">let</span> i = properties.length - <span class="number">1</span>; i &gt;= <span class="number">0</span>; i--) &#123;</span><br><span class="line">    <span class="keyword">const</span> propSet = properties[i]</span><br><span class="line">    <span class="keyword">for</span> (<span class="keyword">let</span> key <span class="keyword">in</span> propSet)</span><br><span class="line">      <span class="keyword">if</span> (definedProps[key] !== <span class="literal">true</span> &amp;&amp; hasOwnProperty(propSet, key)) &#123;</span><br><span class="line">        definedProps[key] = <span class="literal">true</span></span><br><span class="line">        <span class="keyword">if</span> ((target <span class="keyword">as</span> <span class="built_in">any</span>) === propSet &amp;&amp; !isPropertyConfigurable(target, key)) <span class="keyword">continue</span> <span class="comment">// #111</span></span><br><span class="line">        <span class="keyword">const</span> descriptor = <span class="built_in">Object</span>.getOwnPropertyDescriptor(propSet, key)</span><br><span class="line">        <span class="comment">// 根据属性描述符定义可观察属性</span></span><br><span class="line">        defineObservablePropertyFromDescriptor(adm, key, descriptor, defaultEnhancer)</span><br><span class="line">      &#125;</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="keyword">return</span> target</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>defineObservablePropertyFromDescriptor 函数根据属性描述符来定义可观察属性，它是一个通用的函数，后面我们还会多次看到这个函数。对于对象属性，会进入 defineObservableProperty 分支：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">defineObservablePropertyFromDescriptor</span>(<span class="params"></span></span></span><br><span class="line"><span class="function"><span class="params">  adm: ObservableObjectAdministration,</span></span></span><br><span class="line"><span class="function"><span class="params">  propName: <span class="built_in">string</span>,</span></span></span><br><span class="line"><span class="function"><span class="params">  descriptor: PropertyDescriptor,</span></span></span><br><span class="line"><span class="function"><span class="params">  defaultEnhancer: IEnhancer&lt;<span class="built_in">any</span>&gt;</span></span></span><br><span class="line"><span class="function"><span class="params"></span>) </span>&#123;</span><br><span class="line">  <span class="comment">// 已经是可观察属性</span></span><br><span class="line">  <span class="keyword">if</span> (adm.values[propName] &amp;&amp; !isComputedValue(adm.values[propName])) &#123;</span><br><span class="line">    invariant(</span><br><span class="line">      <span class="string">"value"</span> <span class="keyword">in</span> descriptor,</span><br><span class="line">      <span class="string">`The property <span class="subst">$&#123;propName&#125;</span> in <span class="subst">$&#123;adm.name&#125;</span> is already observable, cannot redefine it as computed property`</span></span><br><span class="line">    )</span><br><span class="line">    adm.target[propName] = descriptor.value</span><br><span class="line">    <span class="keyword">return</span></span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 该属性是数据属性</span></span><br><span class="line">  <span class="keyword">if</span> (<span class="string">"value"</span> <span class="keyword">in</span> descriptor) &#123;</span><br><span class="line">    <span class="comment">// 如果是 Modifier 的描述符，取出值和enhancer</span></span><br><span class="line">    <span class="keyword">if</span> (isModifierDescriptor(descriptor.value)) &#123;</span><br><span class="line">      <span class="keyword">const</span> modifierDescriptor = descriptor.value <span class="keyword">as</span> IModifierDescriptor&lt;<span class="built_in">any</span>&gt;</span><br><span class="line">      defineObservableProperty(</span><br><span class="line">        adm,</span><br><span class="line">        propName,</span><br><span class="line">        modifierDescriptor.initialValue,</span><br><span class="line">        modifierDescriptor.enhancer</span><br><span class="line">      )</span><br><span class="line">    <span class="comment">// Action</span></span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> (isAction(descriptor.value) &amp;&amp; descriptor.value.autoBind === <span class="literal">true</span>) &#123;</span><br><span class="line">      defineBoundAction(adm.target, propName, descriptor.value.originalFn)</span><br><span class="line">    <span class="comment">// 计算值</span></span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> (isComputedValue(descriptor.value)) &#123;</span><br><span class="line">      defineComputedPropertyFromComputedValue(adm, propName, descriptor.value)</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      <span class="comment">// 定义可观察属性</span></span><br><span class="line">      defineObservableProperty(adm, propName, descriptor.value, defaultEnhancer)</span><br><span class="line">    &#125;</span><br><span class="line">  <span class="comment">// 访问器属性（即计算值）</span></span><br><span class="line">  &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">    defineComputedProperty(</span><br><span class="line">      adm,</span><br><span class="line">      propName,</span><br><span class="line">      descriptor.get,</span><br><span class="line">      descriptor.set,</span><br><span class="line">      comparer.default,</span><br><span class="line">      <span class="literal">true</span></span><br><span class="line">    )</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>defineObservableProperty 为对象定义可观察属性：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">defineObservableProperty</span>(<span class="params"></span></span></span><br><span class="line"><span class="function"><span class="params">  adm: ObservableObjectAdministration,</span></span></span><br><span class="line"><span class="function"><span class="params">  propName: <span class="built_in">string</span>,</span></span></span><br><span class="line"><span class="function"><span class="params">  newValue,</span></span></span><br><span class="line"><span class="function"><span class="params">  enhancer: IEnhancer&lt;<span class="built_in">any</span>&gt;</span></span></span><br><span class="line"><span class="function"><span class="params"></span>) </span>&#123;</span><br><span class="line">  <span class="comment">// ...</span></span><br><span class="line"></span><br><span class="line">  <span class="comment">// 将属性定义成一个 ObservableValue 实例，存放在 admin 对象的 values 属性上</span></span><br><span class="line">  <span class="comment">// 注意这里使用的是 deepEnhancer，意味着对于属性值是复杂对象的情形，在实例化</span></span><br><span class="line">  <span class="comment">// ObservableValue 时会递归执行「将对象转换为可观察对象」的过程，从而使得 values </span></span><br><span class="line">  <span class="comment">// 上的属性都是可观察的</span></span><br><span class="line">  <span class="keyword">const</span> observable = (adm.values[propName] = <span class="keyword">new</span> ObservableValue(</span><br><span class="line">    newValue,</span><br><span class="line">    enhancer,</span><br><span class="line">    <span class="string">`<span class="subst">$&#123;adm.name&#125;</span>.<span class="subst">$&#123;propName&#125;</span>`</span>,</span><br><span class="line">    <span class="literal">false</span></span><br><span class="line">  ))</span><br><span class="line">  newValue = (observable <span class="keyword">as</span> <span class="built_in">any</span>).value</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 定义访问器属性</span></span><br><span class="line">  <span class="built_in">Object</span>.defineProperty(adm.target, propName, generateObservablePropConfig(propName))</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>重点来了，前面提到，ObservableValue 实现了 get 和 set 方法，对于原始值，由用户负责主动调用这两个方法，从而触发 reportObserved 和 reportChanged（实际上是在 setNewValue 方法中触发）。</p>
+<p>那么对于可观察属性，将其包装成 ObservableValue 实例存放在 admin 对象上之后，如何触发 get 和 setNewValue 方法呢？答案是利用访问器属性，generateObservablePropConfig 为属性生成访问器属性描述符，在 get 和 set 访问器中触发相应 ObservableValue 实例的 get 和 setNewValue 方法：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">const</span> observablePropertyConfigs = &#123;&#125; <span class="comment">// 属性描述符缓存</span></span><br><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">generateObservablePropConfig</span>(<span class="params">propName</span>) </span>&#123;</span><br><span class="line">  <span class="keyword">return</span> (</span><br><span class="line">    observablePropertyConfigs[propName] ||</span><br><span class="line">    (observablePropertyConfigs[propName] = &#123;</span><br><span class="line">      configurable: <span class="literal">true</span>,</span><br><span class="line">      enumerable: <span class="literal">true</span>,</span><br><span class="line">      <span class="keyword">get</span>: <span class="function"><span class="keyword">function</span>(<span class="params"></span>) </span>&#123;</span><br><span class="line">        <span class="comment">// 调用 admin 对象上存放的相应 ObservableValue 实例的 get 方法</span></span><br><span class="line">        <span class="comment">// 从而触发 reportObserved</span></span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">this</span>.$mobx.values[propName].get()</span><br><span class="line">      &#125;,</span><br><span class="line">      <span class="keyword">set</span>: <span class="function"><span class="keyword">function</span>(<span class="params">v</span>) </span>&#123;</span><br><span class="line">        setPropertyValue(<span class="keyword">this</span>, propName, v)</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;)</span><br><span class="line">  )</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">setPropertyValue</span>(<span class="params">instance, name: <span class="built_in">string</span>, newValue</span>) </span>&#123;</span><br><span class="line">  <span class="keyword">const</span> adm = instance.$mobx</span><br><span class="line">  <span class="keyword">const</span> observable = adm.values[name]</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 预处理</span></span><br><span class="line">  newValue = observable.prepareNewValue(newValue)</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 值发生变化</span></span><br><span class="line">  <span class="keyword">if</span> (newValue !== UNCHANGED) &#123;</span><br><span class="line">    <span class="comment">// setNewValue 会触发 reportChanged</span></span><br><span class="line">    observable.setNewValue(newValue)</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>经历完这一系列步骤后，最后返回的就是一个可观察的对象了。</p>
+<p>还有一点需要注意的是，因为 extendObservable 中使用的是 deepEnhancer，意味着在 defineObservableProperty 函数中，实例化 ObservableValue 时，如果该属性的值是复杂对象，会递归执行「将对象转换为可观察的」过程，从而使得该属性的所有属性（或元素）也都是可观察的：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// ObservableValue 的构造函数</span></span><br><span class="line"><span class="keyword">constructor</span>(<span class="params"></span></span><br><span class="line"><span class="params">  value: T,</span></span><br><span class="line"><span class="params">  <span class="keyword">protected</span> enhancer: IEnhancer&lt;T&gt;,</span></span><br><span class="line">  name = "ObservableValue@" + getNextId(),</span><br><span class="line">  notifySpy = <span class="literal">true</span></span><br><span class="line">) &#123;</span><br><span class="line">  <span class="keyword">super</span>(name)</span><br><span class="line">  <span class="comment">// 递归调用 deepEnhancer</span></span><br><span class="line">  <span class="keyword">this</span>.value = enhancer(value, <span class="literal">undefined</span>, name)</span><br><span class="line">  <span class="comment">// ...</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="数组"><a href="#数组" class="headerlink" title="数组"></a>数组</h3><p>Mobx 实现了一个扩展的数组类型，ObservableArray，来支持数组的可观察。observable.array 方法返回一个 ObservableArray 实例：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// observable.array 工厂方法</span></span><br><span class="line">array&lt;T&gt;(initialValues?: T[], name?: <span class="built_in">string</span>): IObservableArray&lt;T&gt; &#123;</span><br><span class="line">  <span class="keyword">if</span> (<span class="built_in">arguments</span>.length &gt; <span class="number">2</span>) incorrectlyUsedAsDecorator(<span class="string">"array"</span>)</span><br><span class="line">  <span class="comment">// 返回一个 ObservableArray 实例，使用 deepEnhancer 对各数组项进行包装</span></span><br><span class="line">  <span class="keyword">return</span> <span class="keyword">new</span> ObservableArray(initialValues, deepEnhancer, name) <span class="keyword">as</span> <span class="built_in">any</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>与对象不同的是，数组的「属性名」都是一样的，即0,1,2…这样的索引。Mobx 利用原型链，在 ObservableArray 的原型上添加 0,1,2…等访问器属性：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 记录 Observable.prototype 上访问器属性的数量</span></span><br><span class="line"><span class="keyword">let</span> OBSERVABLE_ARRAY_BUFFER_SIZE = <span class="number">0</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// 新增访问器属性</span></span><br><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">reserveArrayBuffer</span>(<span class="params">max: <span class="built_in">number</span></span>) </span>&#123;</span><br><span class="line">  <span class="keyword">for</span> (<span class="keyword">let</span> index = OBSERVABLE_ARRAY_BUFFER_SIZE; index &lt; max; index++)</span><br><span class="line">    createArrayBufferItem(index)</span><br><span class="line">  OBSERVABLE_ARRAY_BUFFER_SIZE = max</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">createArrayBufferItem</span>(<span class="params">index: <span class="built_in">number</span></span>) </span>&#123;</span><br><span class="line">  <span class="built_in">Object</span>.defineProperty(ObservableArray.prototype, <span class="string">""</span> + index, createArrayEntryDescriptor(index))</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 访问器属性描述符</span></span><br><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">createArrayEntryDescriptor</span>(<span class="params">index: <span class="built_in">number</span></span>) </span>&#123;</span><br><span class="line">  <span class="keyword">return</span> &#123;</span><br><span class="line">    enumerable: <span class="literal">false</span>,</span><br><span class="line">    configurable: <span class="literal">false</span>,</span><br><span class="line">    <span class="keyword">get</span>: <span class="function"><span class="keyword">function</span>(<span class="params"></span>) </span>&#123;</span><br><span class="line">      <span class="comment">// 调用 ObservableArray 实例的 get 方法，带上存放在闭包内的索引</span></span><br><span class="line">      <span class="keyword">return</span> <span class="keyword">this</span>.get(index)</span><br><span class="line">    &#125;,</span><br><span class="line">    <span class="keyword">set</span>: <span class="function"><span class="keyword">function</span>(<span class="params">value</span>) </span>&#123;</span><br><span class="line">      <span class="comment">// 调用 ObservableArray 实例的 set 方法</span></span><br><span class="line">      <span class="keyword">this</span>.set(index, value)</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 初始化时先添加1000个索引属性</span></span><br><span class="line">reserveArrayBuffer(<span class="number">1000</span>)</span><br></pre></td></tr></table></figure>
+<p>这样，使用索引访问 ObservableArray 实例中的元素时，顺着原型链查找到相应属性，就会调用 ObservableArray 实例的 get 和 set 方法了，同时带上相应的索引值。</p>
+<p>Mobx 初始化时，会在 ObservableArray.prototype 上添加1000个这样的索引属性，当数组长度超过1000时，再通过 reserveArrayBuffer 函数来扩充 ObservableArray.prototype 上索引属性的数量。</p>
+<p>也就是说，ObservableArray 实例上并没有0,1,2…等属性，那么数组项存放在哪呢？</p>
+<p>和对象的处理类似，每一个 ObservableArray 实例都有一个对应的 ObservableArrayAdministration 实例来管理数组项，数组的每一项都会转换成「可观察的」之后，存放在 admin 对象的 values 属性上，这个属性是一个原生 JS 数组。</p>
+<p>ObservableArray, ObservableArray.prototype, ObservableArrayAdministration 三者之间的关系如下图所示：</p>
+<p><img src="./ObservableArray示意图.png" alt="ObservableArray示意图"></p>
+<p>来看看一个可观察的数组的初始化过程：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// ObservableArray 的构造函数</span></span><br><span class="line"><span class="keyword">constructor</span>(<span class="params"></span></span><br><span class="line"><span class="params">  initialValues: T[] | <span class="literal">undefined</span>,</span></span><br><span class="line"><span class="params">  enhancer: IEnhancer&lt;T&gt;,</span></span><br><span class="line">  name = "ObservableArray@" + getNextId(),</span><br><span class="line">  owned = <span class="literal">false</span></span><br><span class="line">) &#123;</span><br><span class="line">  <span class="keyword">super</span>()</span><br><span class="line">  <span class="comment">// 创建 admin 对象，并作为不可枚举、不可修改的属性添加到 ObservableArray 实例上</span></span><br><span class="line">  <span class="keyword">const</span> adm = <span class="keyword">new</span> ObservableArrayAdministration&lt;T&gt;(name, enhancer, <span class="keyword">this</span> <span class="keyword">as</span> <span class="built_in">any</span>, owned)</span><br><span class="line">  addHiddenFinalProp(<span class="keyword">this</span>, <span class="string">"$mobx"</span>, adm)</span><br><span class="line">  <span class="comment">// 添加传入的数组项到 admin 对象的 values 属性上</span></span><br><span class="line">  <span class="keyword">if</span> (initialValues &amp;&amp; initialValues.length) &#123;</span><br><span class="line">    <span class="keyword">this</span>.spliceWithArray(<span class="number">0</span>, <span class="number">0</span>, initialValues)</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>spliceWithArray 方法直接调用了 admin 对象上的同名方法：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// ObservableArrayAdministration.prototype.spliceWithArray</span></span><br><span class="line">spliceWithArray(index: <span class="built_in">number</span>, deleteCount?: <span class="built_in">number</span>, newItems?: T[]): T[] &#123;</span><br><span class="line">  checkIfStateModificationsAreAllowed(<span class="keyword">this</span>.atom)</span><br><span class="line">  <span class="keyword">const</span> length = <span class="keyword">this</span>.values.length</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 一堆参数的处理</span></span><br><span class="line">  <span class="keyword">if</span> (index === <span class="literal">undefined</span>) index = <span class="number">0</span></span><br><span class="line">  <span class="keyword">else</span> <span class="keyword">if</span> (index &gt; length) index = length</span><br><span class="line">  <span class="keyword">else</span> <span class="keyword">if</span> (index &lt; <span class="number">0</span>) index = <span class="built_in">Math</span>.max(<span class="number">0</span>, length + index)</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (<span class="built_in">arguments</span>.length === <span class="number">1</span>) deleteCount = length - index</span><br><span class="line">  <span class="keyword">else</span> <span class="keyword">if</span> (deleteCount === <span class="literal">undefined</span> || deleteCount === <span class="literal">null</span>) deleteCount = <span class="number">0</span></span><br><span class="line">  <span class="keyword">else</span> deleteCount = <span class="built_in">Math</span>.max(<span class="number">0</span>, <span class="built_in">Math</span>.min(deleteCount, length - index))</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (newItems === <span class="literal">undefined</span>) newItems = []</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 重点：遍历新增的数组项，返回经过 enhancer 包装后的</span></span><br><span class="line">  newItems = &lt;T[]&gt;newItems.map(<span class="function"><span class="params">v</span> =&gt;</span> <span class="keyword">this</span>.enhancer(v, <span class="literal">undefined</span>))</span><br><span class="line">  <span class="keyword">const</span> lengthDelta = newItems.length - deleteCount</span><br><span class="line">  </span><br><span class="line">  <span class="comment">// 更新 length</span></span><br><span class="line">  <span class="keyword">this</span>.updateArrayLength(length, lengthDelta)</span><br><span class="line">  <span class="comment">// 更新 values 数组</span></span><br><span class="line">  <span class="keyword">const</span> res = <span class="keyword">this</span>.spliceItemsIntoValues(index, deleteCount, newItems)</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (deleteCount !== <span class="number">0</span> || newItems.length !== <span class="number">0</span>)</span><br><span class="line">    <span class="comment">// 通知变化</span></span><br><span class="line">    <span class="keyword">this</span>.notifyArraySplice(index, newItems, res)</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 和原生 splice 方法一样，返回删除的数组项</span></span><br><span class="line">  <span class="keyword">return</span> <span class="keyword">this</span>.dehanceValues(res)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>这样就得到了一个可观察的数组。</p>
+<p>当我们访问数组项时，如前文所述，Observable.prototype 上的索引属性被访问，并通过 get 访问器调用 ObservableArray 实例的 get 方法：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">get</span>(index: <span class="built_in">number</span>): T | <span class="literal">undefined</span> &#123;</span><br><span class="line">  <span class="comment">// 获取 admin 对象</span></span><br><span class="line">  <span class="keyword">const</span> impl = &lt;ObservableArrayAdministration&lt;<span class="built_in">any</span>&gt;&gt;<span class="keyword">this</span>.$mobx</span><br><span class="line">  <span class="keyword">if</span> (impl) &#123;</span><br><span class="line">    <span class="keyword">if</span> (index &lt; impl.values.length) &#123;</span><br><span class="line">      <span class="comment">// admin 对象上的 Atom 实例通知数组被观察</span></span><br><span class="line">      impl.atom.reportObserved()</span><br><span class="line">      <span class="comment">// 返回经过 dehancer 处理的原始数组项</span></span><br><span class="line">      <span class="keyword">return</span> impl.dehanceValue(impl.values[index])</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="keyword">return</span> <span class="literal">undefined</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>直接通过索引修改数组项的值时，set 访问器会调用 ObservableArray 实例的 set 方法，同样也是由 admin 对象负责数组项的更新和变化通知：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">set</span>(index: <span class="built_in">number</span>, newValue: T) &#123;</span><br><span class="line">  <span class="keyword">const</span> adm = &lt;ObservableArrayAdministration&lt;T&gt;&gt;<span class="keyword">this</span>.$mobx</span><br><span class="line">  <span class="keyword">const</span> values = adm.values</span><br><span class="line">  <span class="keyword">if</span> (index &lt; values.length) &#123;</span><br><span class="line">    checkIfStateModificationsAreAllowed(adm.atom)</span><br><span class="line">    <span class="keyword">const</span> oldValue = values[index]</span><br><span class="line">    newValue = adm.enhancer(newValue, oldValue)</span><br><span class="line">    <span class="keyword">const</span> changed = newValue !== oldValue</span><br><span class="line">    <span class="keyword">if</span> (changed) &#123;</span><br><span class="line">      values[index] = newValue</span><br><span class="line">      <span class="comment">// notifyArrayChildUpdate 方法内会调用 atom 实例的 reportChanged 方法发送变化通知</span></span><br><span class="line">      adm.notifyArrayChildUpdate(index, newValue, oldValue)</span><br><span class="line">    &#125;</span><br><span class="line">  &#125; <span class="keyword">else</span> <span class="keyword">if</span> (index === values.length) &#123;</span><br><span class="line">    <span class="comment">// 添加一个元素</span></span><br><span class="line">    adm.spliceWithArray(index, <span class="number">0</span>, [newValue])</span><br><span class="line">  &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">    <span class="comment">// 抛出错误...</span></span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>Mobx 中数组的 length 属性也是可观察的，原理也是一样的，都是利用原型链，在 Observable.prototype 上定义有 length 访问器属性，这里不再赘述。</p>
+<p>为了得到类似原生数组的使用体验，ObservableArray 实现了所有原生数组的方法。来看看具体的实现方式。</p>
+<p>对于 map, slice, toString 等不修改原数组的方法，只是在调用之前发送被观察通知：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line">;[</span><br><span class="line">  <span class="string">"every"</span>,</span><br><span class="line">  <span class="string">"filter"</span>,</span><br><span class="line">  <span class="string">"forEach"</span>,</span><br><span class="line">  <span class="string">"indexOf"</span>,</span><br><span class="line">  <span class="string">"join"</span>,</span><br><span class="line">  <span class="string">"lastIndexOf"</span>,</span><br><span class="line">  <span class="string">"map"</span>,</span><br><span class="line">  <span class="string">"reduce"</span>,</span><br><span class="line">  <span class="string">"reduceRight"</span>,</span><br><span class="line">  <span class="string">"slice"</span>,</span><br><span class="line">  <span class="string">"some"</span>,</span><br><span class="line">  <span class="string">"toString"</span>,</span><br><span class="line">  <span class="string">"toLocaleString"</span></span><br><span class="line">].forEach(<span class="function"><span class="params">funcName</span> =&gt;</span> &#123;</span><br><span class="line">  <span class="keyword">const</span> baseFunc = <span class="built_in">Array</span>.prototype[funcName]</span><br><span class="line">  addHiddenProp(ObservableArray.prototype, funcName, <span class="function"><span class="keyword">function</span>(<span class="params"></span>) </span>&#123;</span><br><span class="line">    <span class="comment">// 先调用 peek 方法，发送被观察通知</span></span><br><span class="line">    <span class="comment">// 然后在返回的数组项上调用方法</span></span><br><span class="line">    <span class="keyword">return</span> baseFunc.apply(<span class="keyword">this</span>.peek(), <span class="built_in">arguments</span>)</span><br><span class="line">  &#125;)</span><br><span class="line">&#125;)</span><br><span class="line"></span><br><span class="line"><span class="comment">// ObservableArray.prototype.peek</span></span><br><span class="line">peek(): T[] &#123;</span><br><span class="line">  <span class="comment">// 发送被观察通知</span></span><br><span class="line">  <span class="keyword">this</span>.$mobx.atom.reportObserved()</span><br><span class="line">  <span class="comment">// 返回原始数组项供方法使用</span></span><br><span class="line">  <span class="keyword">return</span> <span class="keyword">this</span>.$mobx.dehanceValues(<span class="keyword">this</span>.$mobx.values)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>对于会修改原数组的方法，调用 admin 对象上的方法进行操作，比如：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// ObservableArray.prototype.push</span></span><br><span class="line">push(...items: T[]): <span class="built_in">number</span> &#123;</span><br><span class="line">  <span class="keyword">const</span> adm = <span class="keyword">this</span>.$mobx</span><br><span class="line">  <span class="comment">// spliceWithArray 方法内部会发送变化通知</span></span><br><span class="line">  adm.spliceWithArray(adm.values.length, <span class="number">0</span>, items)</span><br><span class="line">  <span class="keyword">return</span> adm.values.length</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="Map"><a href="#Map" class="headerlink" title="Map"></a>Map</h3><p>与数组的处理类似，Mobx 也实现了一个 ObservableMap 类，不过只支持字符串、数字或布尔值作为键。ObservableMap 在可观察对象的基础上，还要使键的增删可观察。它可以看做两个可观察映射和一个可观察数组的组合：</p>
+<p><img src="./ObservableMap示意.png" alt="ObservableMap示意"></p>
+<p>这里的可观察映射指的是属性值可观察而对象属性不可观察，相当于 ObservableObjectAdministration 的 values 属性。_data 存放键到可观察值的映射，_hasMap 存放键是否存在的映射。_keys 属性是一个 ObservableArray 实例，存放所有的键，从而使键的增删可观察。</p>
+<p>三者配合从而得到一个可观察粒度比对象更细的 Map。例如一个使用了 get 方法的 Derivation 只观察该键值对的变化，而不会观察其它键值对的设置和增删：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">const</span> map = observable(<span class="keyword">new</span> Map());</span><br><span class="line"></span><br><span class="line">autorun(<span class="function"><span class="params">()</span> =&gt;</span> &#123;</span><br><span class="line">  <span class="built_in">console</span>.log(map.get(<span class="string">'key'</span>));</span><br><span class="line">&#125;);</span><br><span class="line"></span><br><span class="line">map.set(<span class="string">'key'</span>, <span class="string">'value'</span>); <span class="comment">// 新增 key-value 键值对，输出 value</span></span><br><span class="line">map.set(<span class="string">'key'</span>, <span class="string">'anotherValue'</span>); <span class="comment">// 修改为 key-anotherValue，输出 anotherValue</span></span><br><span class="line">map.set(<span class="string">'prop'</span>, <span class="string">'value'</span>); <span class="comment">// 不输出</span></span><br><span class="line">map.delete(<span class="string">'prop'</span>); <span class="comment">// 不输出</span></span><br></pre></td></tr></table></figure>
+<p>来看 get 方法的实现：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">get</span>(key: <span class="built_in">string</span>): V | <span class="literal">undefined</span> &#123;</span><br><span class="line">  key = <span class="string">""</span> + key</span><br><span class="line">  <span class="comment">// 如果存在该键值对，触发该值的 reportObserved</span></span><br><span class="line">  <span class="keyword">if</span> (<span class="keyword">this</span>.has(key)) <span class="keyword">return</span> <span class="keyword">this</span>.dehanceValue(<span class="keyword">this</span>._data[key]!.get())</span><br><span class="line">  <span class="keyword">return</span> <span class="keyword">this</span>.dehanceValue(<span class="literal">undefined</span>)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">has(key: <span class="built_in">string</span>): <span class="built_in">boolean</span> &#123;</span><br><span class="line">  <span class="keyword">if</span> (!<span class="keyword">this</span>.isValidKey(key)) <span class="keyword">return</span> <span class="literal">false</span></span><br><span class="line">  key = <span class="string">""</span> + key</span><br><span class="line">  <span class="comment">// _hasMap 中对应值(observable(bool))发送观察通知</span></span><br><span class="line">  <span class="keyword">if</span> (<span class="keyword">this</span>._hasMap[key]) <span class="keyword">return</span> <span class="keyword">this</span>._hasMap[key].get()</span><br><span class="line">  <span class="keyword">return</span> <span class="keyword">this</span>._updateHasMapEntry(key, <span class="literal">false</span>).get()</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>也就是说，这个 Derivation 只收集了这个键对应的值和表示是否存在该键的布尔值作为依赖，因而只对该键的值变化和该键值对的增删作出响应。</p>
+<p>再比如使用了 keys 方法的 Derivation 只观察键值对的增删，而使用了 values 方法的 Derivation 同时观察键值对的增删和值的变化：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">keys(): <span class="built_in">string</span>[] &amp; Iterator&lt;<span class="built_in">string</span>&gt; &#123;</span><br><span class="line">  <span class="comment">// _keys.slice 触发 _keys 的被观察通知</span></span><br><span class="line">  <span class="keyword">return</span> arrayAsIterator(<span class="keyword">this</span>._keys.slice())</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">values(): V[] &amp; Iterator&lt;V&gt; &#123;</span><br><span class="line">  <span class="comment">// _keys.map 触发 _keys 的被观察通知</span></span><br><span class="line">  <span class="comment">// 依次调用 this.get 触发每一个可观察值的被观察通知</span></span><br><span class="line">  <span class="keyword">return</span> (arrayAsIterator <span class="keyword">as</span> <span class="built_in">any</span>)(<span class="keyword">this</span>._keys.map(<span class="keyword">this</span>.get, <span class="keyword">this</span>))</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="发送被观察通知"><a href="#发送被观察通知" class="headerlink" title="发送被观察通知"></a>发送被观察通知</h2><p>接下来看看 reportObserved 是如何发送通知的：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">reportObserved</span>(<span class="params">observable: IObservable</span>) </span>&#123;</span><br><span class="line">  <span class="comment">// 从全局状态中取出当前正在跟踪的 Derivation</span></span><br><span class="line">  <span class="keyword">const</span> derivation = globalState.trackingDerivation</span><br><span class="line">  <span class="keyword">if</span> (derivation !== <span class="literal">null</span>) &#123;</span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">      * 一处简单的性能优化，如果是同一次 Derivation 执行访问到 Observable</span></span><br><span class="line"><span class="comment">      * 直接忽略</span></span><br><span class="line"><span class="comment">      */</span></span><br><span class="line">    <span class="keyword">if</span> (derivation.runId !== observable.lastAccessedBy) &#123;</span><br><span class="line">      observable.lastAccessedBy = derivation.runId</span><br><span class="line">      <span class="comment">// 将 Observable 加入衍生的 newObserving 数组中，</span></span><br><span class="line">      <span class="comment">// 同时更新 unboundDepsCount（新增的依赖数量）</span></span><br><span class="line">      derivation.newObserving![derivation.unboundDepsCount++] = observable</span><br><span class="line">    &#125;</span><br><span class="line">  </span><br><span class="line">  <span class="comment">// 如果 Observable 不再有观察者时，将他加入到一个全局队列中待处理</span></span><br><span class="line">  &#125; <span class="keyword">else</span> <span class="keyword">if</span> (observable.observers.length === <span class="number">0</span>) &#123;</span><br><span class="line">    queueForUnobservation(observable)</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>reportObserved 函数从全局状态中取出当前正在执行的 Derivation，把 Observable 加入其 newObserving 数组中。Derivation 执行完后，会比较新旧 observing 数组，重新计算出依赖（这部分内容可以参看第四篇）。</p>
+<h2 id="发送变化通知"><a href="#发送变化通知" class="headerlink" title="发送变化通知"></a>发送变化通知</h2><p>再来看 propageteChanged 是如何发送变化通知的：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">propagateChanged</span>(<span class="params">observable: IObservable</span>) </span>&#123;</span><br><span class="line">  <span class="comment">// 如果该 Observable 的所有观察者都已经处于过期状态，就没有必要发送过期通知了</span></span><br><span class="line">  <span class="keyword">if</span> (observable.lowestObserverState === IDerivationState.STALE) <span class="keyword">return</span></span><br><span class="line">  <span class="comment">// 标记所有观察者都处于过期状态</span></span><br><span class="line">  observable.lowestObserverState = IDerivationState.STALE</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 遍历所有观察者，将它们的 dependenciesState 标志设为过期，表示有依赖过期，需要重新计算</span></span><br><span class="line">  <span class="keyword">const</span> observers = observable.observers</span><br><span class="line">  <span class="keyword">let</span> i = observers.length</span><br><span class="line">  <span class="keyword">while</span> (i--) &#123;</span><br><span class="line">    <span class="keyword">const</span> d = observers[i]</span><br><span class="line">    <span class="comment">// 如果依赖由最新变为过期，调用该观察者的 onBecomeStale 方法</span></span><br><span class="line">    <span class="keyword">if</span> (d.dependenciesState === IDerivationState.UP_TO_DATE) d.onBecomeStale()</span><br><span class="line">    d.dependenciesState = IDerivationState.STALE</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>可以看到，propagateChanged 只是将 Observable 和它的观察者们的标志设为了过期，并没有实际执行任何的重新计算。在一个 Derivation 的依赖由最新变为过期时，会调用它的 onBecomeStale 方法。</p>
+<p>Reaction 的 onBecomeStale 方法只是简单的调用了 schedule 方法，将该 Reaction 的更新「加入了一个计划表内」：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">onBecomeStale() &#123;</span><br><span class="line">  <span class="keyword">this</span>.schedule()</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">schedule() &#123;</span><br><span class="line">  <span class="comment">// 已经在重新计算的计划表内，直接返回</span></span><br><span class="line">  <span class="keyword">if</span> (!<span class="keyword">this</span>._isScheduled) &#123;</span><br><span class="line">    <span class="keyword">this</span>._isScheduled = <span class="literal">true</span></span><br><span class="line">    <span class="comment">// 该 Reaction 加入全局的待重新计算数组中</span></span><br><span class="line">    globalState.pendingReactions.push(<span class="keyword">this</span>)</span><br><span class="line">    runReactions()</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>这张计划表实际上就是一个全局的数组，放置的是当前批次需要重新执行的所有 Reaction。<br>紧接着调用了 runReactions 函数：</p>
+<figure class="highlight ts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">runReactions</span>(<span class="params"></span>) </span>&#123;</span><br><span class="line">  <span class="comment">// 此时处于事务中，inBatch &gt; 0，会直接返回</span></span><br><span class="line">  <span class="keyword">if</span> (globalState.inBatch &gt; <span class="number">0</span> || globalState.isRunningReactions) <span class="keyword">return</span></span><br><span class="line">  reactionScheduler(runReactionsHelper)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>这种情形下 runReactions 实际不会执行 Reaction 的重新计算，因为此时至少会处于一个事务当中，即 Observable 在调用 reportChanged 时所开始的事务。</p>
+<p>第四篇中我们将会看到，Derivation 是如何根据 Observalbe 的通知，动态更新自身的依赖或执行重新计算的。</p>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+      <div>
+        <ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者：</strong>
+    郭琛
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="http://guochen-whu.github.io/2017/11/15/Mobx-源码解读（二）-Observable/" title="Mobx 源码解读（二） Observable">http://guochen-whu.github.io/2017/11/15/Mobx-源码解读（二）-Observable/</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>
+    本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/3.0/" rel="external nofollow" target="_blank">CC BY-NC-SA 3.0</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+
+      </div>
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/Mobx/" rel="tag"># Mobx</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2017/11/14/Mobx-源码解读（一）-基本概念/" rel="next" title="Mobx 源码解读（一） 基本概念">
+                <i class="fa fa-chevron-left"></i> Mobx 源码解读（一） 基本概念
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2017/11/16/Mobx-源码解读（三）-Modifier/" rel="prev" title="Mobx 源码解读（三） Modifier">
+                Mobx 源码解读（三） Modifier <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+    <div class="comments" id="comments">
+    </div>
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">郭琛</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">6</span>
+                  <span class="site-state-item-name">日志</span>
+                </a>
+              </div>
+            
+
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                <a href="/tags/index.html">
+                  <span class="site-state-item-count">1</span>
+                  <span class="site-state-item-name">标签</span>
+                </a>
+              </div>
+            
+
+          </nav>
+
+          
+            <div class="feed-link motion-element">
+              <a href="/atom.xml" rel="alternate">
+                <i class="fa fa-rss"></i>
+                RSS
+              </a>
+            </div>
+          
+
+          <div class="links-of-author motion-element">
+            
+              
+                <span class="links-of-author-item">
+                  <a href="https://github.com/GuoChen-WHU" target="_blank" title="GitHub">
+                    
+                      <i class="fa fa-fw fa-github"></i>GitHub</a>
+                </span>
+              
+                <span class="links-of-author-item">
+                  <a href="https://www.zhihu.com/people/guochen0908/" target="_blank" title="知乎">
+                    
+                      <i class="fa fa-fw fa-globe"></i>知乎</a>
+                </span>
+              
+                <span class="links-of-author-item">
+                  <a href="guochen0908@gmail.com" target="_blank" title="E-Mail">
+                    
+                      <i class="fa fa-fw fa-envelope"></i>E-Mail</a>
+                </span>
+              
+            
+          </div>
+
+          
+          
+            <div class="cc-license motion-element" itemprop="license">
+              <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" class="cc-opacity" target="_blank">
+                <img src="/images/cc-by-nc-sa.svg" alt="Creative Commons" />
+              </a>
+            </div>
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#如何变得「可观察」"><span class="nav-number">1.</span> <span class="nav-text">如何变得「可观察」</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Box"><span class="nav-number">1.1.</span> <span class="nav-text">Box</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#对象"><span class="nav-number">1.2.</span> <span class="nav-text">对象</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#数组"><span class="nav-number">1.3.</span> <span class="nav-text">数组</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Map"><span class="nav-number">1.4.</span> <span class="nav-text">Map</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#发送被观察通知"><span class="nav-number">2.</span> <span class="nav-text">发送被观察通知</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#发送变化通知"><span class="nav-number">3.</span> <span class="nav-text">发送变化通知</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2017</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">郭琛</span>
+
+  
+</div>
+
+
+  <div class="powered-by">由 <a class="theme-link" target="_blank" href="https://hexo.io">Hexo</a> 强力驱动</div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">主题 &mdash; <a class="theme-link" target="_blank" href="https://github.com/iissnan/hexo-theme-next">NexT.Mist</a> v5.1.3</div>
+
+
+
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.3"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.3"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.3"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.3"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.3"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  <script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+  <script src="//unpkg.com/valine/dist/Valine.min.js"></script>
+  
+  <script type="text/javascript">
+    var GUEST = ['nick','mail','link'];
+    var guest = 'nick,mail,link';
+    guest = guest.split(',').filter(item=>{
+      return GUEST.indexOf(item)>-1;
+    });
+    new Valine({
+        el: '#comments' ,
+        verify: false,
+        notify: false,
+        appId: 'hzMUeAPwB0mGWELHt6770yS4-gzGzoHsz',
+        appKey: 'ipDJ4X5UhJkfERUCcXsmSeUY',
+        placeholder: 'Just go go',
+        avatar:'mm',
+        guest_info:guest,
+        pageSize:'10' || 10,
+    });
+  </script>
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
